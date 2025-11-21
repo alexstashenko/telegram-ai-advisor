@@ -283,11 +283,15 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
 
 // Suppress the ETELEGRAM error in the development environment
 bot.on('polling_error', (error) => {
-    if ((error as any).code === 'ETELEGRAM' && (error as any).message.includes('409 Conflict')) {
-        // console.log('Ignoring ETELEGRAM 409 Conflict error during development restart.');
-    } else {
-        console.error('Polling error:', error);
-    }
+  // ETELEGRAM error 409: Conflict - Another instance of the bot is already running.
+  if ((error as any).code === 'ETELEGRAM' && (error as any).message.includes('409 Conflict')) {
+    console.error('CRITICAL: Another instance of the bot is already running. This instance will be terminated.');
+    console.error('Please make sure to stop all other running bot processes.');
+    process.exit(1); // Exit with a failure code
+  } else {
+    // For any other polling error, just log it.
+    console.error('Polling error:', error);
+  }
 });
 
 console.log('Telegram bot started...');
@@ -308,4 +312,3 @@ const cleanup = async () => {
 
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
-    
