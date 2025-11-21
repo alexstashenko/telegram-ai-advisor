@@ -45,6 +45,7 @@ export async function simulateAdvisorAdvice(
   return simulateAdvisorAdviceFlow(input);
 }
 
+// FIX #3: Изменен output schema для прямого использования advisorId
 const simulateAdvisorAdvicePrompt = ai.definePrompt({
   name: 'simulateAdvisorAdvicePrompt',
   input: {
@@ -61,15 +62,7 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
       ),
     }),
   },
-  output: {schema: z.object({
-      advisorAdvices: z.array(
-        z.object({
-          advisorName: z.string().describe("The full name of the advisor."),
-          advice: z.string().describe("The concise advice from this advisor (3-4 sentences)."),
-        })
-      ),
-      synthesis: z.string().describe('A concise, actionable summary of all advice (3-4 sentences).'),
-    })},
+  output: {schema: SimulateAdvisorAdviceOutputSchema},
   prompt: `You are a facilitator of a personal advisory board. You will provide advice from each of the selected advisors based on their known philosophies. Your response MUST be in Russian.
 
   The user's situation is:
@@ -77,15 +70,16 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
 
   Here are the advisor profiles you must use:
   {{#each advisorDetails}}
-  - Advisor: {{this.name}} (Style: {{this.style}}, Principles: {{this.principles}}, Tone: {{this.tone}})
+  - Advisor ID: {{this.id}}, Name: {{this.name}}, Style: {{this.style}}, Principles: {{this.principles}}, Tone: {{this.tone}}
   {{/each}}
   
   INSTRUCTIONS:
   1. For EACH advisor, provide their specific advice based on their profile. The advice for EACH advisor must be CONCISE (3-4 sentences).
   2. Then, provide a "synthesis": a short, actionable summary of all advice. The synthesis must also be CONCISE (3-4 sentences).
-  3. The 'advisorName' in the output JSON must be the original name string for that advisor.
+  3. CRITICAL: In the output JSON, the 'advisorId' field MUST be the exact ID string provided above (e.g., "NavalRavikant", "SteveJobs"). DO NOT use the advisor's name, use the ID.
+  4. Return advice for ALL advisors provided in the list.
 
-  Output the advice in the specified JSON format.
+  Output the advice in the specified JSON format with advisorId (not name) for each advisor.
   `,
 });
 
@@ -103,7 +97,7 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
         throw new Error(`Advisor profile for ID "${id}" not found.`);
       }
       return {
-        id, // Pass the id through for mapping later
+        id,
         ...profile
       };
     });
@@ -113,42 +107,33 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
     }
 
     // 2. Call the AI model with the prepared details.
-    const {output: rawOutput} = await simulateAdvisorAdvicePrompt({
+    const {output} = await simulateAdvisorAdvicePrompt({
       situationDescription: input.situationDescription,
       advisorDetails: advisorDetails,
     });
 
-    if (!rawOutput || !rawOutput.advisorAdvices) {
+    if (!output || !output.advisorAdvices) {
       throw new Error('AI model returned invalid or empty output.');
     }
 
-    // 3. Map the results back, ensuring correct ID association.
-    const mappedAdvices = rawOutput.advisorAdvices.map(adviceItem => {
-      const matchingAdvisor = advisorDetails.find(d => d.name === adviceItem.advisorName);
-      
-      if (!matchingAdvisor) {
-        // This is a safeguard. If the model hallucinates a name, we'll know.
-        console.warn(`Could not map advisor name "${adviceItem.advisorName}" back to an ID.`);
-        // To prevent a crash, we can either throw or return a placeholder.
-        // Let's return a placeholder but the real fix is a good prompt.
-        return {
-          advisorId: 'unknown',
-          advice: adviceItem.advice,
-        };
+    // FIX #3: Теперь не нужен маппинг - AI возвращает advisorId напрямую
+    // Проверяем, что все ID валидны
+    const validatedAdvices = output.advisorAdvices.filter(advice => {
+      const isValid = input.selectedAdvisors.includes(advice.advisorId);
+      if (!isValid) {
+        console.warn(`AI returned unexpected advisor ID: "${advice.advisorId}"`);
       }
-
-      return {
-        advisorId: matchingAdvisor.id, // The crucial mapping back to the original ID
-        advice: adviceItem.advice,
-      };
+      return isValid;
     });
 
-    // 4. Return the final, correctly structured output.
+    if (validatedAdvices.length === 0) {
+      throw new Error('AI model returned no valid advisor advices.');
+    }
+
+    // 4. Return the final output.
     return {
-        synthesis: rawOutput.synthesis,
-        advisorAdvices: mappedAdvices,
+        synthesis: output.synthesis,
+        advisorAdvices: validatedAdvices,
     };
   }
 );
-
-    
