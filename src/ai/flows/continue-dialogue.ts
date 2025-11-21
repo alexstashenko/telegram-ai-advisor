@@ -35,13 +35,8 @@ const continueDialoguePrompt = ai.definePrompt({
   name: 'continueDialoguePrompt',
   input: {schema: ContinueDialogueInputSchema},
   output: {schema: ContinueDialogueOutputSchema},
-  prompt: `You are a facilitator for a personal advisory board. Your task is to provide an answer to the user's follow-up question.
+  prompt: `You are a facilitator for a personal advisory board. Your task is to provide an answer to the user's follow-up question based on the provided conversation history.
 Your response MUST be in Russian.
-
-The advisors are:
-- Наваль Равикант (Naval Ravikant)
-- Питер Левелс (Pieter Levels)
-- Гэри Вайнерчук (Gary Vaynerchuk)
 
 Conversation History:
 {{#each history}}
@@ -51,9 +46,9 @@ Conversation History:
 User's new question: {{question}}
 
 INSTRUCTIONS:
-1.  Examine the "User's new question" to see if it explicitly mentions an advisor by name (e.g., "Наваль", "Питер", "Гэри").
-2.  **IF A NAME IS MENTIONED:** You MUST answer exclusively from that single advisor's perspective, using their known style and principles.
-3.  **IF NO NAME IS MENTIONED:** You MUST answer from the perspective of the facilitator, providing a general, helpful, and synthesized response based on the entire conversation.
+1.  Examine the "User's new question" and the "Conversation History" to understand which advisor is being addressed, or if it's a general question.
+2.  **IF AN ADVISOR IS MENTIONED:** You MUST answer exclusively from that single advisor's perspective, using their known style and principles.
+3.  **IF NO ADVISOR IS MENTIONED:** You MUST answer from the perspective of the facilitator, providing a general, helpful, and synthesized response based on the entire conversation.
 4.  The answer MUST be concise and to the point (3-4 sentences maximum).
   `,
 });

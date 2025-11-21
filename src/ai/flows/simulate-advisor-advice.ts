@@ -10,62 +10,56 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import {advisorProfiles} from '@/ai/advisors';
 
 const SimulateAdvisorAdviceInputSchema = z.object({
-  situationDescription: z.string().describe('The user-provided description of their situation.'),
-  selectedAdvisors: z.array(z.enum(['NavalRavikant', 'PieterLevels', 'GaryVaynerchuk'])).describe('An array of selected advisor names.'),
+  situationDescription: z
+    .string()
+    .describe('The user-provided description of their situation.'),
+  selectedAdvisors: z
+    .array(z.string())
+    .describe('An array of selected advisor IDs.'),
 });
 
-export type SimulateAdvisorAdviceInput = z.infer<typeof SimulateAdvisorAdviceInputSchema>;
+export type SimulateAdvisorAdviceInput = z.infer<
+  typeof SimulateAdvisorAdviceInputSchema
+>;
 
 const SimulateAdvisorAdviceOutputSchema = z.object({
   advisorAdvices: z.array(
     z.object({
-      advisorName: z.enum(['NavalRavikant', 'PieterLevels', 'GaryVaynerchuk']),
+      advisorName: z.string().describe("The ID of the advisor."),
       advice: z.string(),
     })
   ),
   synthesis: z.string().describe('A synthesis of the advice from all advisors.'),
 });
 
-export type SimulateAdvisorAdviceOutput = z.infer<typeof SimulateAdvisorAdviceOutputSchema>;
+export type SimulateAdvisorAdviceOutput = z.infer<
+  typeof SimulateAdvisorAdviceOutputSchema
+>;
 
-export async function simulateAdvisorAdvice(input: SimulateAdvisorAdviceInput): Promise<SimulateAdvisorAdviceOutput> {
+export async function simulateAdvisorAdvice(
+  input: SimulateAdvisorAdviceInput
+): Promise<SimulateAdvisorAdviceOutput> {
   return simulateAdvisorAdviceFlow(input);
 }
 
-export const advisorProfiles = {
-  NavalRavikant: {
-    name: 'Наваль Равикант',
-    style: 'Philosophical, strategic, long-term thinking, analogies.',
-    principles: 'Seek wealth, not money or status. Build specific knowledge. Leverage through code, media, and people. Read what you love. Free markets and individual responsibility.',
-    tone: 'Calm, thoughtful, insightful',
-  },
-  PieterLevels: {
-    name: 'Питер Левелс',
-    style: 'Practical, tactical, concrete steps, execution focus.',
-    principles: 'Build in public, ship fast, iterate quickly. Minimum viable product -> revenue -> scale. Automation and solo-entrepreneurship. Data-driven decisions. Bootstrap approach.',
-    tone: 'Direct, technical, humorous',
-  },
-  GaryVaynerchuk: {
-    name: 'Гэри Вайнерчук',
-    style: 'Energetic, motivational, action-oriented, work ethic.',
-    principles: 'Extreme execution. Document, don\'t create. Attention is the main currency. Self-awareness. Patience + aggression. Long-term brand building.',
-    tone: 'Passionate, intense, realistic',
-  },
-};
-
 const simulateAdvisorAdvicePrompt = ai.definePrompt({
   name: 'simulateAdvisorAdvicePrompt',
-  input: {schema: z.object({
-    situationDescription: z.string(),
-    advisorDetails: z.array(z.object({
-        name: z.string(),
-        style: z.string(),
-        principles: z.string(),
-        tone: z.string(),
-    })),
-  })},
+  input: {
+    schema: z.object({
+      situationDescription: z.string(),
+      advisorDetails: z.array(
+        z.object({
+          name: z.string(),
+          style: z.string(),
+          principles: z.string(),
+          tone: z.string(),
+        })
+      ),
+    }),
+  },
   output: {schema: SimulateAdvisorAdviceOutputSchema},
   prompt: `You are a facilitator of a personal advisory board. You will provide advice from each of the selected advisors based on their known philosophies. Your response MUST be in Russian.
 
@@ -80,6 +74,7 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
   INSTRUCTIONS:
   1. For EACH advisor, provide their specific advice based on their profile. The advice for EACH advisor must be CONCISE (3-4 sentences).
   2. Then, provide a "synthesis": a short, actionable summary of all advice. The synthesis must also be CONCISE (3-4 sentences).
+  3. The 'advisorName' in the output JSON must be the original ID string for that advisor.
 
   Output the advice in the specified JSON format.
   `,
@@ -92,21 +87,42 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
     outputSchema: SimulateAdvisorAdviceOutputSchema,
   },
   async input => {
-    const advisorDetails = input.selectedAdvisors.map(id => ({
-        ...advisorProfiles[id],
-    }));
-
-    const {output} = await simulateAdvisorAdvicePrompt({ 
-        situationDescription: input.situationDescription,
-        advisorDetails,
+    const advisorDetails = input.selectedAdvisors.map(id => {
+      const profile = advisorProfiles[id as keyof typeof advisorProfiles];
+      if (!profile) {
+        throw new Error(`Advisor profile for ID "${id}" not found.`);
+      }
+      return {
+        id, // pass the id through
+        ...profile
+      };
     });
     
+    // Create a version of advisorDetails for the prompt without the 'id' field
+    const promptAdvisorDetails = advisorDetails.map(({ id, ...rest }) => rest);
+
+    const {output} = await simulateAdvisorAdvicePrompt({
+      situationDescription: input.situationDescription,
+      advisorDetails: promptAdvisorDetails,
+    });
+
     if (!output) {
       throw new Error('AI model returned no output.');
     }
-    
+
     // Filter out any potentially empty/null advice objects
-    output.advisorAdvices = output.advisorAdvices?.filter(advice => advice && advice.advisorName && advice.advice) || [];
+    output.advisorAdvices =
+      output.advisorAdvices?.filter(
+        advice => advice && advice.advisorName && advice.advice
+      ) || [];
+      
+    // Map IDs back if necessary (model should return them, but as a fallback)
+    output.advisorAdvices.forEach(advice => {
+      const advisorDetail = advisorDetails.find(d => d.name === advice.advisorName);
+      if (advisorDetail) {
+        advice.advisorName = advisorDetail.id;
+      }
+    });
 
     return output;
   }

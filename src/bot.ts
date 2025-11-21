@@ -2,8 +2,10 @@
 import 'dotenv/config';
 import './ai/genkit'; // Initialize Genkit
 import TelegramBot from 'node-telegram-bot-api';
-import { simulateAdvisorAdvice, advisorProfiles } from '@/ai/flows/simulate-advisor-advice';
+import { simulateAdvisorAdvice } from '@/ai/flows/simulate-advisor-advice';
 import { continueDialogue } from '@/ai/flows/continue-dialogue';
+import { selectAdvisors } from '@/ai/flows/select-advisors';
+import { advisorProfiles } from '@/ai/advisors';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -13,101 +15,58 @@ if (!token) {
 
 const bot = new TelegramBot(token, { polling: true });
 
-interface DialogueState {
+// -- State Management --
+type DialogueState = {
   history: Array<{ role: 'user' | 'model'; content: string }>;
   followUpsRemaining: number;
-}
+};
 
-const userState = new Map<number, DialogueState>();
+type UserState = {
+  stage: 'awaiting_situation' | 'awaiting_advisor_selection' | 'in_dialogue';
+  situation?: string;
+  selectedAdvisors?: string[];
+  dialogue?: DialogueState;
+};
+
+const userState = new Map<number, UserState>();
 const MAX_FOLLOW_UPS = 3;
+const REQUIRED_ADVISORS = 3;
 
 function resetUserState(chatId: number) {
-  userState.delete(chatId);
+  userState.set(chatId, { stage: 'awaiting_situation' });
 }
 
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
-  if (!text) {
+  if (!text) return;
+
+  if (text.startsWith('/start')) {
+    resetUserState(chatId);
+    await bot.sendMessage(chatId, 'Здравствуйте! Опишите вашу жизненную, рабочую или бизнес-ситуацию, и я подберу для вас персональный совет директоров.');
     return;
   }
 
-  // Reset conversation if user sends /start
-  if (text === '/start') {
-    resetUserState(chatId);
-    await bot.sendMessage(
-      chatId,
-      'Здравствуйте! Опишите вашу ситуацию, и я предоставлю вам совет от виртуального совета директоров.'
-    );
-    return;
-  }
-  
-  const currentState = userState.get(chatId);
-  const isNewConversation = !currentState || currentState.followUpsRemaining <= 0;
+  const currentState = userState.get(chatId) || { stage: 'awaiting_situation' };
 
   try {
-    if (isNewConversation) {
-      // Start of a new conversation
-      resetUserState(chatId); // Clear any old state just in case
-      await bot.sendChatAction(chatId, 'typing');
-
-      const result = await simulateAdvisorAdvice({
-        situationDescription: text,
-        selectedAdvisors: ['NavalRavikant', 'PieterLevels', 'GaryVaynerchuk'],
-      });
-
-      if (!result || !result.advisorAdvices || result.advisorAdvices.length === 0) {
-        await bot.sendMessage(chatId, "К сожалению, не удалось сгенерировать совет. Попробуйте переформулировать ваш запрос.");
-        return;
-      }
+    switch (currentState.stage) {
+      case 'awaiting_situation':
+        await handleSituation(chatId, text);
+        break;
       
-      let initialModelResponse = `*Общие рекомендации Совета:*\n${result.synthesis}\n\n`;
-      initialModelResponse += '*Мнение каждого советника:*\n';
-      
-      const newHistory: Array<{ role: 'user' | 'model'; content: string }> = [
-        { role: 'user', content: `Моя ситуация: ${text}` },
-        { role: 'model', content: result.synthesis },
-      ];
+      case 'in_dialogue':
+        if (!currentState.dialogue) { // Should not happen
+          throw new Error("Dialogue state is missing.");
+        }
+        await handleFollowUp(chatId, text, currentState as Required<UserState>);
+        break;
 
-      result.advisorAdvices.forEach(advice => {
-        const advisorName = advisorProfiles[advice.advisorName as keyof typeof advisorProfiles].name;
-        const adviceText = `*${advisorName}:*\n${advice.advice}\n`;
-        initialModelResponse += `\n${adviceText}`;
-        newHistory.push({ role: 'model', content: `Ответ от ${advisorName}: ${advice.advice}` });
-      });
-
-      userState.set(chatId, {
-        history: newHistory,
-        followUpsRemaining: MAX_FOLLOW_UPS,
-      });
-
-      await bot.sendMessage(chatId, initialModelResponse, { parse_mode: 'Markdown' });
-      await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников. Например: "Наваль, что ты думаешь о..."`);
-
-    } else {
-      // Continuation of a dialogue
-      await bot.sendChatAction(chatId, 'typing');
-
-      const followUpResult = await continueDialogue({
-          question: text,
-          history: currentState.history,
-      });
-
-      currentState.history.push({ role: 'user', content: text });
-      currentState.history.push({ role: 'model', content: followUpResult.answer });
-      currentState.followUpsRemaining--;
-      
-      userState.set(chatId, currentState);
-
-      await bot.sendMessage(chatId, followUpResult.answer, { parse_mode: 'Markdown' });
-
-      if (currentState.followUpsRemaining > 0) {
-        await bot.sendMessage(chatId, `Осталось вопросов: ${currentState.followUpsRemaining}.`);
-      } else {
-        await bot.sendMessage(chatId, 'Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
-        resetUserState(chatId);
-      }
+      default:
+        // If user sends a message while they should be clicking buttons
+        await bot.sendMessage(chatId, `Пожалуйста, выберите ${REQUIRED_ADVISORS} советников, нажимая на кнопки выше.`);
+        break;
     }
   } catch (error) {
     console.error('Error processing message:', error);
@@ -116,12 +75,158 @@ bot.on('message', async (msg) => {
   }
 });
 
+async function handleSituation(chatId: number, situation: string) {
+  await bot.sendChatAction(chatId, 'typing');
+  
+  const potentialAdvisors = await selectAdvisors({ situationDescription: situation });
+
+  if (!potentialAdvisors || potentialAdvisors.advisors.length === 0) {
+    await bot.sendMessage(chatId, 'Не удалось подобрать советников для вашей ситуации. Попробуйте переформулировать запрос.');
+    return;
+  }
+  
+  userState.set(chatId, {
+    stage: 'awaiting_advisor_selection',
+    situation: situation,
+    selectedAdvisors: [],
+  });
+
+  const keyboard = {
+    inline_keyboard: potentialAdvisors.advisors.map(advisor => ([{
+      text: `${advisor.name} (${advisor.description})`,
+      callback_data: `advisor_${advisor.id}`,
+    }]))
+  };
+
+  await bot.sendMessage(chatId, `Отлично, я подобрал для вас 5 потенциальных советников. Выберите ровно ${REQUIRED_ADVISORS} из них:`, {
+    reply_markup: keyboard,
+  });
+}
+
+bot.on('callback_query', async (callbackQuery) => {
+    const chatId = callbackQuery.message!.chat.id;
+    const data = callbackQuery.data;
+    const messageId = callbackQuery.message!.message_id;
+
+    if (!data || !data.startsWith('advisor_')) {
+      await bot.answerCallbackQuery(callbackQuery.id);
+      return;
+    }
+    
+    const currentState = userState.get(chatId);
+    if (!currentState || currentState.stage !== 'awaiting_advisor_selection' || !currentState.selectedAdvisors) {
+        await bot.answerCallbackQuery(callbackQuery.id, { text: "Пожалуйста, начните сначала с /start."});
+        return;
+    }
+
+    const advisorId = data.split('_')[1];
+    const selectedCount = currentState.selectedAdvisors.length;
+    const isSelected = currentState.selectedAdvisors.includes(advisorId);
+
+    if (isSelected) {
+      currentState.selectedAdvisors = currentState.selectedAdvisors.filter(id => id !== advisorId);
+    } else if (selectedCount < REQUIRED_ADVISORS) {
+      currentState.selectedAdvisors.push(advisorId);
+    } else {
+      await bot.answerCallbackQuery(callbackQuery.id, { text: `Вы можете выбрать только ${REQUIRED_ADVISORS} советников.`, show_alert: true });
+      return;
+    }
+    
+    userState.set(chatId, currentState);
+
+    // Update keyboard to show checkmarks
+    const oldKeyboard = callbackQuery.message!.reply_markup!.inline_keyboard;
+    const newKeyboard = oldKeyboard.map(row => row.map(button => {
+        const buttonAdvisorId = button.callback_data!.split('_')[1];
+        const isButtonSelected = currentState.selectedAdvisors!.includes(buttonAdvisorId);
+        return {
+            ...button,
+            text: isButtonSelected ? `✅ ${button.text.replace('✅ ', '')}` : button.text.replace('✅ ', ''),
+        };
+    }));
+
+    await bot.editMessageReplyMarkup({ inline_keyboard: newKeyboard }, { chat_id: chatId, message_id: messageId });
+    await bot.answerCallbackQuery(callbackQuery.id);
+    
+    // Check if we have enough advisors to proceed
+    if (currentState.selectedAdvisors.length === REQUIRED_ADVISORS) {
+        await bot.sendMessage(chatId, 'Отличный выбор! Готовлю персональные советы...');
+        await generateInitialAdvice(chatId, currentState as Required<UserState>);
+    }
+});
+
+
+async function generateInitialAdvice(chatId: number, state: Required<UserState>) {
+    await bot.sendChatAction(chatId, 'typing');
+    
+    const result = await simulateAdvisorAdvice({
+        situationDescription: state.situation,
+        selectedAdvisors: state.selectedAdvisors,
+    });
+    
+    if (!result || !result.advisorAdvices || result.advisorAdvices.length === 0) {
+        await bot.sendMessage(chatId, "К сожалению, не удалось сгенерировать совет. Попробуйте переформулировать ваш запрос.");
+        resetUserState(chatId);
+        return;
+    }
+
+    let initialModelResponse = `*Общие рекомендации Совета:*\n${result.synthesis}\n\n`;
+    initialModelResponse += '*Мнение каждого советника:*\n';
+
+    const newHistory: DialogueState['history'] = [
+        { role: 'user', content: `Моя ситуация: ${state.situation}` },
+        { role: 'model', content: result.synthesis },
+    ];
+
+    result.advisorAdvices.forEach(advice => {
+        const advisorName = advisorProfiles[advice.advisorName as keyof typeof advisorProfiles].name;
+        const adviceText = `*${advisorName}:*\n${advice.advice}\n`;
+        initialModelResponse += `\n${adviceText}`;
+        newHistory.push({ role: 'model', content: `Ответ от ${advisorName}: ${advice.advice}` });
+    });
+
+    userState.set(chatId, {
+      ...state,
+      stage: 'in_dialogue',
+      dialogue: {
+        history: newHistory,
+        followUpsRemaining: MAX_FOLLOW_UPS,
+      }
+    });
+
+    await bot.sendMessage(chatId, initialModelResponse, { parse_mode: 'Markdown' });
+    await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников. Например: "Наваль, что ты думаешь о..."`);
+}
+
+
+async function handleFollowUp(chatId: number, text: string, state: Required<UserState>) {
+    await bot.sendChatAction(chatId, 'typing');
+
+    const followUpResult = await continueDialogue({
+        question: text,
+        history: state.dialogue.history,
+    });
+
+    state.dialogue.history.push({ role: 'user', content: text });
+    state.dialogue.history.push({ role: 'model', content: followUpResult.answer });
+    state.dialogue.followUpsRemaining--;
+    
+    userState.set(chatId, state);
+
+    await bot.sendMessage(chatId, followUpResult.answer, { parse_mode: 'Markdown' });
+
+    if (state.dialogue.followUpsRemaining > 0) {
+        await bot.sendMessage(chatId, `Осталось вопросов: ${state.dialogue.followUpsRemaining}.`);
+    } else {
+        await bot.sendMessage(chatId, 'Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
+        resetUserState(chatId);
+    }
+}
+
+
 // Suppress the ETELEGRAM error in the development environment
 bot.on('polling_error', (error) => {
     if ((error as any).code === 'ETELEGRAM' && (error as any).message.includes('409 Conflict')) {
-        // This error happens during development when the server restarts.
-        // It's a conflict between the old and new bot instances.
-        // We can safely ignore it in a dev environment.
         console.log('Ignoring ETELEGRAM 409 Conflict error during development restart.');
     } else {
         console.error('Polling error:', error);

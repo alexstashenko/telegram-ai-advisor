@@ -3,3 +3,4 @@ config();
 
 import '@/ai/flows/simulate-advisor-advice.ts';
 import '@/ai/flows/continue-dialogue.ts';
+import '@/ai/flows/select-advisors.ts';
