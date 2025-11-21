@@ -113,3 +113,14 @@ bot.on('message', async (msg) => {
 });
 
 console.log('Telegram bot started...');
+
+// Graceful shutdown
+const cleanup = async () => {
+  console.log('Stopping Telegram bot...');
+  await bot.stopPolling();
+  console.log('Telegram bot stopped.');
+  process.exit(0);
+};
+
+process.on('SIGINT', cleanup);
+process.on('SIGTERM', cleanup);
