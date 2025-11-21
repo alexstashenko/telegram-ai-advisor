@@ -42,9 +42,10 @@ bot.on('message', async (msg) => {
   }
 
   const currentState = userState.get(chatId);
+  const isNewConversation = !currentState || currentState.followUpsRemaining <= 0;
 
   try {
-    if (!currentState || currentState.followUpsRemaining <= 0) {
+    if (isNewConversation) {
       // Start of a new conversation
       await bot.sendMessage(chatId, 'Анализирую вашу ситуацию, это может занять некоторое время...');
 
