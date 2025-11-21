@@ -44,7 +44,7 @@ bot.on('message', async (msg) => {
 
   if (text.startsWith('/start')) {
     resetUserState(chatId);
-    await bot.sendMessage(chatId, 'Здравствуйте! Опишите вашу жизненную, рабочую или бизнес-ситуацию, и я подберу для вас персональный совет директоров.');
+    await bot.sendMessage(chatId, 'Здравствуйте! Опишите вашу ситуацию, и я предложу вам 5 персон, наиболее подходящих для вашего персонального Совета директоров.');
     return;
   }
 
