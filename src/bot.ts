@@ -66,6 +66,7 @@ bot.on('message', async (msg) => {
       
       const newHistory: Array<{ role: 'user' | 'model'; content: string }> = [
         { role: 'user', content: `Моя ситуация: ${text}` },
+        { role: 'model', content: result.synthesis },
       ];
 
       result.advisorAdvices.forEach(advice => {
@@ -93,7 +94,7 @@ bot.on('message', async (msg) => {
       });
 
       currentState.history.push({ role: 'user', content: text });
-      currentState.history.push({ role 'model', content: followUpResult.answer });
+      currentState.history.push({ role: 'model', content: followUpResult.answer });
       currentState.followUpsRemaining--;
       
       userState.set(chatId, currentState);
