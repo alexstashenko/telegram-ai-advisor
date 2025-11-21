@@ -209,7 +209,7 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         history: state.dialogue.history,
     });
 
-    const newHistory = [
+    const newHistory: DialogueState['history'] = [
         ...state.dialogue.history,
         { role: 'user', content: text },
         { role: 'model', content: followUpResult.answer }
