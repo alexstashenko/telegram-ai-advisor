@@ -57,24 +57,27 @@ export const advisorProfiles = {
 
 const simulateAdvisorAdvicePrompt = ai.definePrompt({
   name: 'simulateAdvisorAdvicePrompt',
-  input: {schema: SimulateAdvisorAdviceInputSchema},
+  input: {schema: z.object({
+    situationDescription: z.string(),
+    advisorDetails: z.array(z.object({
+        name: z.string(),
+        style: z.string(),
+        principles: z.string(),
+        tone: z.string(),
+    })),
+  })},
   output: {schema: SimulateAdvisorAdviceOutputSchema},
   prompt: `You are a facilitator of a personal advisory board consisting of three outstanding entrepreneurs and thinkers. You will provide advice from each of the selected advisors based on their known philosophies and approaches. Your response must be in Russian.
 
   The user's situation is described as follows:
   {{situationDescription}}
 
-  The selected advisors are:
-  {{#each selectedAdvisors}}
-  - {{this}}
-  {{/each}}
-
   Here are the advisor profiles:
-  {{#each selectedAdvisors}}
-  Advisor Name: {{this}}
-  Style: {{lookup ../advisorProfiles this "style"}}
-  Principles: {{lookup ../advisorProfiles this "principles"}}
-  Tone: {{lookup ../advisorProfiles this "tone"}}
+  {{#each advisorDetails}}
+  Advisor Name: {{this.name}}
+  Style: {{this.style}}
+  Principles: {{this.principles}}
+  Tone: {{this.tone}}
   {{/each}}
 
   Provide advice from each of the selected advisors, and then provide a synthesis of their advice.
@@ -107,13 +110,20 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
     outputSchema: SimulateAdvisorAdviceOutputSchema,
   },
   async input => {
-    const {output} = await simulateAdvisorAdvicePrompt({ ...input, advisorProfiles });
+    const advisorDetails = input.selectedAdvisors.map(id => ({
+        id,
+        ...advisorProfiles[id],
+    }));
+
+    const {output} = await simulateAdvisorAdvicePrompt({ 
+        situationDescription: input.situationDescription,
+        advisorDetails,
+    });
     
     if (!output) {
       throw new Error('AI model returned no output.');
     }
     
-    // Filter out undefined or null values from advisorAdvices
     output.advisorAdvices = output.advisorAdvices?.filter(advice => advice) || [];
 
     return output;
