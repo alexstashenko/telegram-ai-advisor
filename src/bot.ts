@@ -33,6 +33,7 @@ bot.on('message', async (msg) => {
     return;
   }
 
+  // Reset conversation if user sends /start
   if (text === '/start') {
     resetUserState(chatId);
     await bot.sendMessage(
@@ -48,8 +49,8 @@ bot.on('message', async (msg) => {
   try {
     if (isNewConversation) {
       // Start of a new conversation
-      resetUserState(chatId); // Clear any old state
-      await bot.sendMessage(chatId, 'Анализирую вашу ситуацию, это может занять некоторое время...');
+      resetUserState(chatId); // Clear any old state just in case
+      await bot.sendChatAction(chatId, 'typing'); // Show "typing..." status
 
       const result = await simulateAdvisorAdvice({
         situationDescription: text,
@@ -86,7 +87,7 @@ bot.on('message', async (msg) => {
 
     } else {
       // Continuation of a dialogue
-      await bot.sendMessage(chatId, 'Думаю над вашим вопросом...');
+      await bot.sendChatAction(chatId, 'typing'); // Show "typing..." status
 
       const followUpResult = await continueDialogue({
           question: text,
