@@ -1,32 +1,37 @@
 'use server';
 /**
- * @fileOverview Dynamically selects advisors based on the user's situation.
+ * @fileOverview Dynamically generates advisors based on the user's situation.
  *
- * - selectAdvisors - A function that selects the most relevant advisors.
+ * - selectAdvisors - A function that generates the most relevant advisors.
  * - SelectAdvisorsInput - The input type for the selectAdvisors function.
  * - SelectAdvisorsOutput - The return type for the selectAdvisors function.
  */
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
-import {advisorProfiles} from '@/ai/advisors';
 
 const SelectAdvisorsInputSchema = z.object({
   situationDescription: z.string().describe('The user-provided description of their situation.'),
 });
 export type SelectAdvisorsInput = z.infer<typeof SelectAdvisorsInputSchema>;
 
+// Полный профиль советника
+export const AdvisorProfileSchema = z.object({
+  id: z.string().describe('Unique identifier (use lowercase name without spaces, e.g., "elonmusk", "mariecurie")'),
+  name: z.string().describe('Full name of the advisor'),
+  description: z.string().describe('Brief (3-5 word) description of their expertise relevant to this situation'),
+  style: z.string().describe('Their communication and thinking style'),
+  principles: z.string().describe('Key principles and philosophies they follow'),
+  tone: z.string().describe('The tone they use when giving advice'),
+});
+
+export type AdvisorProfile = z.infer<typeof AdvisorProfileSchema>;
+
 const SelectAdvisorsOutputSchema = z.object({
   advisors: z
-    .array(
-      z.object({
-        id: z.string().describe('The unique identifier for the advisor.'),
-        name: z.string().describe('The name of the advisor.'),
-        description: z.string().describe('A very brief (3-5 word) description of the advisor\'s expertise relevant to the specific situation.'),
-      })
-    )
+    .array(AdvisorProfileSchema)
     .length(5)
-    .describe('An array of exactly 5 selected advisors.'),
+    .describe('An array of exactly 5 generated advisors with full profiles.'),
 });
 export type SelectAdvisorsOutput = z.infer<typeof SelectAdvisorsOutputSchema>;
 
@@ -41,32 +46,35 @@ const selectAdvisorsPrompt = ai.definePrompt({
   input: {
     schema: z.object({
       situationDescription: z.string(),
-      advisorList: z.array(
-        z.object({
-          id: z.string(),
-          name: z.string(),
-          description: z.string(),
-        })
-      ),
     }),
   },
   output: {schema: SelectAdvisorsOutputSchema},
-  prompt: `You are an expert at assembling personal advisory boards.
-Your task is to select the 5 most relevant advisors from the provided list to help with the user's situation. Ensure a diversity of perspectives. Your response MUST be in Russian.
+  prompt: `You are an expert at assembling personal advisory boards. Your task is to CREATE 5 unique advisors who would be most valuable for the user's specific situation.
 
 USER'S SITUATION:
 "{{situationDescription}}"
 
-AVAILABLE ADVISORS:
-{{#each advisorList}}
-- ID: {{this.id}}, Name: {{this.name}}, Expertise: {{this.description}}
-{{/each}}
-
 INSTRUCTIONS:
-1.  Analyze the user's situation carefully.
-2.  Select exactly 5 advisors from the list who would provide the most valuable and diverse insights for this specific problem.
-3.  For each of the 5 selected advisors, write a new, very concise (3-5 word) description explaining why they are a good fit for THIS situation.
-4.  Output the result in the specified JSON format. The 'id' and 'name' must match the original advisor data exactly.
+1. Analyze the user's situation deeply.
+2. CREATE exactly 5 advisors who would provide diverse, valuable perspectives for THIS specific situation.
+3. You can choose:
+   - Real historical or contemporary figures (e.g., Elon Musk, Marie Curie, Warren Buffett, Oprah Winfrey)
+   - Fictional characters if highly relevant (e.g., Sherlock Holmes for analytical thinking)
+   - Archetypal roles (e.g., "Experienced Startup CTO", "Seasoned Therapist")
+4. Ensure DIVERSITY: different fields, thinking styles, backgrounds, perspectives.
+5. For EACH advisor, provide:
+   - id: lowercase name without spaces (e.g., "elonmusk", "mariecurie", "experiencedcto")
+   - name: Full name or title
+   - description: Very brief (3-5 words) why they're relevant to THIS situation
+   - style: How they think and communicate
+   - principles: Their core philosophies and approaches
+   - tone: How they typically speak/advise
+
+6. Make the profiles rich and authentic - imagine how these people would ACTUALLY advise.
+7. Your response MUST be in Russian (names can be in original language, but all descriptions in Russian).
+
+OUTPUT:
+Return exactly 5 advisors in the specified JSON format.
 `,
 });
 
@@ -77,27 +85,22 @@ const selectAdvisorsFlow = ai.defineFlow(
     outputSchema: SelectAdvisorsOutputSchema,
   },
   async input => {
-    // Convert the advisorProfiles object into the format the prompt expects
-    const advisorList = Object.entries(advisorProfiles).map(
-      ([id, profile]) => ({
-        id,
-        name: profile.name,
-        // The description here is a general one for the model to use for selection
-        description: `${profile.style} ${profile.principles}`,
-      })
-    );
-    
     const {output} = await selectAdvisorsPrompt({
       situationDescription: input.situationDescription,
-      advisorList,
     });
     
-    if (!output) {
-      throw new Error('AI model returned no output for advisor selection.');
+    if (!output || !output.advisors || output.advisors.length !== 5) {
+      throw new Error('AI model returned invalid output for advisor generation.');
+    }
+    
+    // Валидация уникальности ID
+    const ids = output.advisors.map(a => a.id);
+    const uniqueIds = new Set(ids);
+    if (uniqueIds.size !== ids.length) {
+      throw new Error('Generated advisor IDs are not unique.');
     }
     
     return output;
   }
 );
-
     

@@ -4,8 +4,7 @@ import './ai/genkit'; // Initialize Genkit
 import TelegramBot from 'node-telegram-bot-api';
 import { simulateAdvisorAdvice } from '@/ai/flows/simulate-advisor-advice';
 import { continueDialogue } from '@/ai/flows/continue-dialogue';
-import { selectAdvisors } from '@/ai/flows/select-advisors';
-import { advisorProfiles } from '@/ai/advisors';
+import { selectAdvisors, type AdvisorProfile } from '@/ai/flows/select-advisors';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -24,7 +23,9 @@ type DialogueState = {
 type UserState = {
   stage: 'awaiting_situation' | 'awaiting_advisor_selection' | 'in_dialogue';
   situation?: string;
-  selectedAdvisors?: string[];
+  availableAdvisors?: AdvisorProfile[]; // Все 5 сгенерированных профилей
+  selectedAdvisorIds?: string[]; // ID выбранных пользователем
+  selectedAdvisors?: AdvisorProfile[]; // Полные профили выбранных
   dialogue?: DialogueState;
 };
 
@@ -46,8 +47,8 @@ bot.on('message', async (msg) => {
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
     resetUserState(chatId);
-    await bot.sendMessage(chatId, `Здравствуйте! Опишите вашу ситуацию, и я предложу вам 5 персон, наиболее подходящих для вашего персонального Совета директоров.`);
-    return; // CRITICAL FIX: Stop further execution for /start command
+    await bot.sendMessage(chatId, `Здравствуйте! Опишите вашу ситуацию, и я подберу для вас 5 персон, наиболее подходящих для вашего персонального Совета директоров.`);
+    return;
   }
 
   const currentState = userState.get(chatId) || { stage: 'awaiting_situation' };
@@ -59,7 +60,7 @@ bot.on('message', async (msg) => {
         break;
       
       case 'in_dialogue':
-        if (!currentState.dialogue) { // Should not happen
+        if (!currentState.dialogue) {
           resetUserState(chatId);
           await bot.sendMessage(chatId, 'Произошла ошибка в диалоге. Начинаем заново. Опишите вашу ситуацию.');
           return;
@@ -68,12 +69,10 @@ bot.on('message', async (msg) => {
         break;
 
       case 'awaiting_advisor_selection':
-        // If user sends a message while they should be clicking buttons
         await bot.sendMessage(chatId, `Пожалуйста, выберите ровно ${REQUIRED_ADVISORS} советников, нажимая на кнопки выше.`);
         break;
         
       default:
-        // Fallback for any unknown state
         resetUserState(chatId);
         await bot.sendMessage(chatId, 'Произошла ошибка в логике. Начинаем заново. Опишите вашу ситуацию.');
         break;
@@ -86,18 +85,17 @@ bot.on('message', async (msg) => {
 });
 
 async function handleSituation(chatId: number, situation: string) {
-  // FIX #7: Проверка длины входных данных
   if (situation.length > MAX_SITUATION_LENGTH) {
     await bot.sendMessage(chatId, `Слишком длинное описание. Пожалуйста, сократите до ${MAX_SITUATION_LENGTH} символов.`);
     return;
   }
 
   await bot.sendChatAction(chatId, 'typing');
+  await bot.sendMessage(chatId, 'Анализирую ситуацию и подбираю экспертов...');
   
-  const potentialAdvisors = await selectAdvisors({ situationDescription: situation });
+  const result = await selectAdvisors({ situationDescription: situation });
 
-  // FIX #1: Сброс состояния при ошибке подбора советников
-  if (!potentialAdvisors || potentialAdvisors.advisors.length < REQUIRED_ADVISORS) {
+  if (!result || !result.advisors || result.advisors.length < REQUIRED_ADVISORS) {
     resetUserState(chatId);
     await bot.sendMessage(chatId, 'Не удалось подобрать достаточное количество советников для вашей ситуации. Попробуйте переформулировать запрос или нажмите /start для начала.');
     return;
@@ -106,17 +104,18 @@ async function handleSituation(chatId: number, situation: string) {
   userState.set(chatId, {
     stage: 'awaiting_advisor_selection',
     situation: situation,
-    selectedAdvisors: [],
+    availableAdvisors: result.advisors,
+    selectedAdvisorIds: [],
   });
 
   const keyboard = {
-    inline_keyboard: potentialAdvisors.advisors.map(advisor => ([{
+    inline_keyboard: result.advisors.map(advisor => ([{
       text: `${advisor.name} (${advisor.description})`,
       callback_data: `advisor_${advisor.id}`,
     }]))
   };
 
-  await bot.sendMessage(chatId, `Отлично, я подобрал для вас 5 потенциальных советников. Выберите ровно ${REQUIRED_ADVISORS} из них:`, {
+  await bot.sendMessage(chatId, `Отлично! Я подобрал для вас 5 экспертов. Выберите ровно ${REQUIRED_ADVISORS} из них:`, {
     reply_markup: keyboard,
   });
 }
@@ -131,35 +130,33 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
     
-    // FIX #6: Читаем свежее состояние перед модификацией
     const currentState = userState.get(chatId);
-    if (!currentState || currentState.stage !== 'awaiting_advisor_selection' || !currentState.selectedAdvisors) {
+    if (!currentState || currentState.stage !== 'awaiting_advisor_selection' || 
+        !currentState.selectedAdvisorIds || !currentState.availableAdvisors) {
         await bot.answerCallbackQuery(callbackQuery.id, { text: "Сессия истекла. Пожалуйста, начните сначала с /start."});
         return;
     }
 
     const advisorId = data.split('_')[1];
-    const isSelected = currentState.selectedAdvisors.includes(advisorId);
+    const isSelected = currentState.selectedAdvisorIds.includes(advisorId);
 
-    // Создаем новый массив для избежания мутации
-    let updatedSelectedAdvisors: string[];
+    let updatedSelectedAdvisorIds: string[];
 
     if (isSelected) {
       // Deselect
-      updatedSelectedAdvisors = currentState.selectedAdvisors.filter(id => id !== advisorId);
-    } else if (currentState.selectedAdvisors.length < REQUIRED_ADVISORS) {
+      updatedSelectedAdvisorIds = currentState.selectedAdvisorIds.filter(id => id !== advisorId);
+    } else if (currentState.selectedAdvisorIds.length < REQUIRED_ADVISORS) {
       // Select
-      updatedSelectedAdvisors = [...currentState.selectedAdvisors, advisorId];
+      updatedSelectedAdvisorIds = [...currentState.selectedAdvisorIds, advisorId];
     } else {
-      // Max number of advisors already selected
+      // Max number already selected
       await bot.answerCallbackQuery(callbackQuery.id, { text: `Вы можете выбрать только ${REQUIRED_ADVISORS} советников.`, show_alert: true });
       return;
     }
     
-    // Обновляем состояние с новым массивом
     const updatedState = {
       ...currentState,
-      selectedAdvisors: updatedSelectedAdvisors
+      selectedAdvisorIds: updatedSelectedAdvisorIds
     };
     userState.set(chatId, updatedState);
 
@@ -167,8 +164,7 @@ bot.on('callback_query', async (callbackQuery) => {
     const oldKeyboard = callbackQuery.message!.reply_markup!.inline_keyboard;
     const newKeyboard = oldKeyboard.map(row => row.map(button => {
         const buttonAdvisorId = button.callback_data!.split('_')[1];
-        const isButtonSelected = updatedSelectedAdvisors.includes(buttonAdvisorId);
-        // Clean text first by removing any existing checkmark
+        const isButtonSelected = updatedSelectedAdvisorIds.includes(buttonAdvisorId);
         const buttonText = button.text.startsWith('✅ ') ? button.text.substring(2) : button.text;
         return {
             ...button,
@@ -180,9 +176,17 @@ bot.on('callback_query', async (callbackQuery) => {
     await bot.answerCallbackQuery(callbackQuery.id);
     
     // Check if we have enough advisors to proceed
-    if (updatedSelectedAdvisors.length === REQUIRED_ADVISORS) {
+    if (updatedSelectedAdvisorIds.length === REQUIRED_ADVISORS) {
+        // Get full profiles of selected advisors
+        const selectedAdvisors = updatedState.availableAdvisors!.filter(
+          advisor => updatedSelectedAdvisorIds.includes(advisor.id)
+        );
+        
         await bot.editMessageText(`Отличный выбор! Готовлю персональные советы...`, { chat_id: chatId, message_id: messageId });
-        await generateInitialAdvice(chatId, updatedState as Required<UserState>);
+        await generateInitialAdvice(chatId, {
+          ...updatedState,
+          selectedAdvisors,
+        } as Required<UserState>);
     }
 });
 
@@ -190,12 +194,8 @@ bot.on('callback_query', async (callbackQuery) => {
 async function generateInitialAdvice(chatId: number, state: Required<UserState>) {
     await bot.sendChatAction(chatId, 'typing');
     
-    // FIX #4: Валидация выбранных советников
-    const validAdvisors = state.selectedAdvisors.filter(
-      id => id in advisorProfiles
-    );
-
-    if (validAdvisors.length !== REQUIRED_ADVISORS) {
+    // Validate selected advisors
+    if (!state.selectedAdvisors || state.selectedAdvisors.length !== REQUIRED_ADVISORS) {
       resetUserState(chatId);
       await bot.sendMessage(chatId, 'Ошибка валидации советников. Пожалуйста, начните заново с команды /start.');
       return;
@@ -203,10 +203,9 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     
     const result = await simulateAdvisorAdvice({
         situationDescription: state.situation,
-        selectedAdvisors: validAdvisors,
+        selectedAdvisors: state.selectedAdvisors,
     });
     
-    // FIX #5: Улучшено сообщение об ошибке
     if (!result || !result.advisorAdvices || result.advisorAdvices.length === 0) {
         resetUserState(chatId);
         await bot.sendMessage(chatId, "К сожалению, не удалось сгенерировать совет. Попробуйте переформулировать ваш запрос или нажмите /start для начала.");
@@ -216,11 +215,11 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     let initialModelResponse = `*Общие рекомендации Совета:*\n${result.synthesis}\n\n`;
     initialModelResponse += '*Мнение каждого советника:*\n';
 
-    // FIX #2: Упрощенная история диалога - одно model сообщение
     const allAdvices: string[] = [];
 
     result.advisorAdvices.forEach(advice => {
-        const profile = advisorProfiles[advice.advisorId as keyof typeof advisorProfiles];
+        // Find advisor profile by id
+        const profile = state.selectedAdvisors!.find(a => a.id === advice.advisorId);
         const advisorName = profile ? profile.name : advice.advisorId;
         const adviceText = `*${advisorName}:*\n${advice.advice}`;
         initialModelResponse += `\n${adviceText}\n`;
@@ -244,7 +243,7 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     });
 
     await bot.sendMessage(chatId, initialModelResponse, { parse_mode: 'Markdown' });
-    await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников. Например: "Стив, что ты думаешь о..."`);
+    await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников.`);
 }
 
 
@@ -309,3 +308,4 @@ const cleanup = async () => {
 
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
+    
