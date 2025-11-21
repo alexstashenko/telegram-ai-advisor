@@ -50,7 +50,7 @@ bot.on('message', async (msg) => {
     if (isNewConversation) {
       // Start of a new conversation
       resetUserState(chatId); // Clear any old state just in case
-      await bot.sendChatAction(chatId, 'typing'); // Show "typing..." status
+      await bot.sendChatAction(chatId, 'typing');
 
       const result = await simulateAdvisorAdvice({
         situationDescription: text,
@@ -87,7 +87,7 @@ bot.on('message', async (msg) => {
 
     } else {
       // Continuation of a dialogue
-      await bot.sendChatAction(chatId, 'typing'); // Show "typing..." status
+      await bot.sendChatAction(chatId, 'typing');
 
       const followUpResult = await continueDialogue({
           question: text,
@@ -105,7 +105,7 @@ bot.on('message', async (msg) => {
       if (currentState.followUpsRemaining > 0) {
         await bot.sendMessage(chatId, `Осталось вопросов: ${currentState.followUpsRemaining}.`);
       } else {
-        await bot.sendMessage(chatId, 'Надеюсь, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
+        await bot.sendMessage(chatId, 'Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
         resetUserState(chatId);
       }
     }
