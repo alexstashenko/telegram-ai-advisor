@@ -211,8 +211,8 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
 
     const newHistory: DialogueState['history'] = [
         ...state.dialogue.history,
-        { role: 'user', content: text },
-        { role: 'model', content: followUpResult.answer }
+        { role: 'user' as const, content: text },
+        { role: 'model' as const, content: followUpResult.answer }
     ];
     const followUpsRemaining = state.dialogue.followUpsRemaining - 1;
 
