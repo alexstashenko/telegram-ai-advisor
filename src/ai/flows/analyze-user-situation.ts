@@ -37,7 +37,7 @@ const prompt = ai.definePrompt({
 
 You will be given a description of the user\'s current life, work, or business situation.
 
-Your task is to identify the key aspects of the situation and provide a concise summary.
+Your task is to identify the key aspects of the situation and provide a concise summary. Your response must be in Russian.
 
 Situation: {{{situation}}}`,
 });

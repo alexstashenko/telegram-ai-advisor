@@ -42,7 +42,7 @@ const synthesizeAdviceIntoActionPlanPrompt = ai.definePrompt({
   name: 'synthesizeAdviceIntoActionPlanPrompt',
   input: {schema: SynthesizeAdviceIntoActionPlanInputSchema},
   output: {schema: SynthesizeAdviceIntoActionPlanOutputSchema},
-  prompt: `You are an AI assistant tasked with synthesizing advice from three different advisors into a single, actionable plan.
+  prompt: `You are an AI assistant tasked with synthesizing advice from three different advisors into a single, actionable plan. Your response must be in Russian.
 
   Here is the user's situation:
   {{userSituation}}

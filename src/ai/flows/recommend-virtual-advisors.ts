@@ -30,7 +30,7 @@ const prompt = ai.definePrompt({
   name: 'recommendVirtualAdvisorsPrompt',
   input: {schema: RecommendVirtualAdvisorsInputSchema},
   output: {schema: RecommendVirtualAdvisorsOutputSchema},
-  prompt: `You are an AI assistant that recommends the top 5 most relevant public figures for a virtual advisory board based on a user's described situation.  The output must be a JSON array.
+  prompt: `You are an AI assistant that recommends the top 5 most relevant public figures for a virtual advisory board based on a user's described situation. The output must be a JSON array. Your response must be in Russian.
 
 Situation: {{{$input}}}
 

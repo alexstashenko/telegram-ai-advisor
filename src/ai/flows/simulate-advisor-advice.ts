@@ -56,7 +56,7 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
   name: 'simulateAdvisorAdvicePrompt',
   input: {schema: SimulateAdvisorAdviceInputSchema},
   output: {schema: SimulateAdvisorAdviceOutputSchema},
-  prompt: `You are a facilitator of a personal advisory board consisting of three outstanding entrepreneurs and thinkers. You will provide advice from each of the selected advisors based on their known philosophies and approaches.
+  prompt: `You are a facilitator of a personal advisory board consisting of three outstanding entrepreneurs and thinkers. You will provide advice from each of the selected advisors based on their known philosophies and approaches. Your response must be in Russian.
 
   The user's situation is described as follows:
   {{situationDescription}}
