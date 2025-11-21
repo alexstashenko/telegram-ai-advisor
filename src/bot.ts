@@ -31,6 +31,7 @@ type UserState = {
 const userState = new Map<number, UserState>();
 const MAX_FOLLOW_UPS = 3;
 const REQUIRED_ADVISORS = 3;
+const MAX_SITUATION_LENGTH = 2000;
 
 function resetUserState(chatId: number) {
   userState.set(chatId, { stage: 'awaiting_situation' });
@@ -85,12 +86,20 @@ bot.on('message', async (msg) => {
 });
 
 async function handleSituation(chatId: number, situation: string) {
+  // FIX #7: Проверка длины входных данных
+  if (situation.length > MAX_SITUATION_LENGTH) {
+    await bot.sendMessage(chatId, `Слишком длинное описание. Пожалуйста, сократите до ${MAX_SITUATION_LENGTH} символов.`);
+    return;
+  }
+
   await bot.sendChatAction(chatId, 'typing');
   
   const potentialAdvisors = await selectAdvisors({ situationDescription: situation });
 
+  // FIX #1: Сброс состояния при ошибке подбора советников
   if (!potentialAdvisors || potentialAdvisors.advisors.length < REQUIRED_ADVISORS) {
-    await bot.sendMessage(chatId, 'Не удалось подобрать достаточное количество советников для вашей ситуации. Попробуйте переформулировать запрос.');
+    resetUserState(chatId);
+    await bot.sendMessage(chatId, 'Не удалось подобрать достаточное количество советников для вашей ситуации. Попробуйте переформулировать запрос или нажмите /start для начала.');
     return;
   }
   
@@ -122,6 +131,7 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
     
+    // FIX #6: Читаем свежее состояние перед модификацией
     const currentState = userState.get(chatId);
     if (!currentState || currentState.stage !== 'awaiting_advisor_selection' || !currentState.selectedAdvisors) {
         await bot.answerCallbackQuery(callbackQuery.id, { text: "Сессия истекла. Пожалуйста, начните сначала с /start."});
@@ -131,26 +141,33 @@ bot.on('callback_query', async (callbackQuery) => {
     const advisorId = data.split('_')[1];
     const isSelected = currentState.selectedAdvisors.includes(advisorId);
 
+    // Создаем новый массив для избежания мутации
+    let updatedSelectedAdvisors: string[];
+
     if (isSelected) {
       // Deselect
-      currentState.selectedAdvisors = currentState.selectedAdvisors.filter(id => id !== advisorId);
+      updatedSelectedAdvisors = currentState.selectedAdvisors.filter(id => id !== advisorId);
     } else if (currentState.selectedAdvisors.length < REQUIRED_ADVISORS) {
       // Select
-      currentState.selectedAdvisors.push(advisorId);
+      updatedSelectedAdvisors = [...currentState.selectedAdvisors, advisorId];
     } else {
       // Max number of advisors already selected
       await bot.answerCallbackQuery(callbackQuery.id, { text: `Вы можете выбрать только ${REQUIRED_ADVISORS} советников.`, show_alert: true });
       return;
     }
     
-    // CRITICAL: Save state AFTER modification.
-    userState.set(chatId, currentState);
+    // Обновляем состояние с новым массивом
+    const updatedState = {
+      ...currentState,
+      selectedAdvisors: updatedSelectedAdvisors
+    };
+    userState.set(chatId, updatedState);
 
     // Update keyboard to show checkmarks
     const oldKeyboard = callbackQuery.message!.reply_markup!.inline_keyboard;
     const newKeyboard = oldKeyboard.map(row => row.map(button => {
         const buttonAdvisorId = button.callback_data!.split('_')[1];
-        const isButtonSelected = currentState.selectedAdvisors!.includes(buttonAdvisorId);
+        const isButtonSelected = updatedSelectedAdvisors.includes(buttonAdvisorId);
         // Clean text first by removing any existing checkmark
         const buttonText = button.text.startsWith('✅ ') ? button.text.substring(2) : button.text;
         return {
@@ -163,9 +180,9 @@ bot.on('callback_query', async (callbackQuery) => {
     await bot.answerCallbackQuery(callbackQuery.id);
     
     // Check if we have enough advisors to proceed
-    if (currentState.selectedAdvisors.length === REQUIRED_ADVISORS) {
+    if (updatedSelectedAdvisors.length === REQUIRED_ADVISORS) {
         await bot.editMessageText(`Отличный выбор! Готовлю персональные советы...`, { chat_id: chatId, message_id: messageId });
-        await generateInitialAdvice(chatId, currentState as Required<UserState>);
+        await generateInitialAdvice(chatId, updatedState as Required<UserState>);
     }
 });
 
@@ -173,32 +190,49 @@ bot.on('callback_query', async (callbackQuery) => {
 async function generateInitialAdvice(chatId: number, state: Required<UserState>) {
     await bot.sendChatAction(chatId, 'typing');
     
+    // FIX #4: Валидация выбранных советников
+    const validAdvisors = state.selectedAdvisors.filter(
+      id => id in advisorProfiles
+    );
+
+    if (validAdvisors.length !== REQUIRED_ADVISORS) {
+      resetUserState(chatId);
+      await bot.sendMessage(chatId, 'Ошибка валидации советников. Пожалуйста, начните заново с команды /start.');
+      return;
+    }
+    
     const result = await simulateAdvisorAdvice({
         situationDescription: state.situation,
-        selectedAdvisors: state.selectedAdvisors,
+        selectedAdvisors: validAdvisors,
     });
     
+    // FIX #5: Улучшено сообщение об ошибке
     if (!result || !result.advisorAdvices || result.advisorAdvices.length === 0) {
-        await bot.sendMessage(chatId, "К сожалению, не удалось сгенерировать совет. Попробуйте переформулировать ваш запрос.");
         resetUserState(chatId);
+        await bot.sendMessage(chatId, "К сожалению, не удалось сгенерировать совет. Попробуйте переформулировать ваш запрос или нажмите /start для начала.");
         return;
     }
 
     let initialModelResponse = `*Общие рекомендации Совета:*\n${result.synthesis}\n\n`;
     initialModelResponse += '*Мнение каждого советника:*\n';
 
-    const newHistory: DialogueState['history'] = [
-        { role: 'user', content: `Моя ситуация: ${state.situation}` },
-        { role: 'model', content: result.synthesis },
-    ];
+    // FIX #2: Упрощенная история диалога - одно model сообщение
+    const allAdvices: string[] = [];
 
     result.advisorAdvices.forEach(advice => {
         const profile = advisorProfiles[advice.advisorId as keyof typeof advisorProfiles];
         const advisorName = profile ? profile.name : advice.advisorId;
-        const adviceText = `*${advisorName}:*\n${advice.advice}\n`;
-        initialModelResponse += `\n${adviceText}`;
-        newHistory.push({ role: 'model', content: `Ответ от ${advisorName}: ${advice.advice}` });
+        const adviceText = `*${advisorName}:*\n${advice.advice}`;
+        initialModelResponse += `\n${adviceText}\n`;
+        allAdvices.push(`${advisorName}: ${advice.advice}`);
     });
+
+    const combinedModelResponse = `${result.synthesis}\n\n${allAdvices.join('\n\n')}`;
+
+    const newHistory: DialogueState['history'] = [
+        { role: 'user', content: `Моя ситуация: ${state.situation}` },
+        { role: 'model', content: combinedModelResponse },
+    ];
 
     userState.set(chatId, {
       ...state,
@@ -275,5 +309,3 @@ const cleanup = async () => {
 
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
-
-    
