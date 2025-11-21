@@ -41,7 +41,7 @@ bot.on('message', async (msg) => {
     );
     return;
   }
-
+  
   const currentState = userState.get(chatId);
   const isNewConversation = !currentState || currentState.followUpsRemaining <= 0;
 
@@ -72,7 +72,7 @@ bot.on('message', async (msg) => {
         const advisorName = advisorProfiles[advice.advisorName as keyof typeof advisorProfiles].name;
         const adviceText = `*${advisorName}:*\n${advice.advice}\n`;
         initialModelResponse += `\n${adviceText}`;
-        newHistory.push({ role: 'model', content: adviceText });
+        newHistory.push({ role: 'model', content: `Ответ от ${advisorName}: ${advice.advice}` });
       });
 
       userState.set(chatId, {
@@ -93,10 +93,10 @@ bot.on('message', async (msg) => {
       });
 
       currentState.history.push({ role: 'user', content: text });
-      currentState.history.push({ role: 'model', content: followUpResult.answer });
+      currentState.history.push({ role 'model', content: followUpResult.answer });
       currentState.followUpsRemaining--;
       
-      // No need to call userState.set, as we are modifying the object by reference
+      userState.set(chatId, currentState);
 
       await bot.sendMessage(chatId, followUpResult.answer, { parse_mode: 'Markdown' });
 

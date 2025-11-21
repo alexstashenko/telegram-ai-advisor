@@ -35,7 +35,7 @@ const continueDialoguePrompt = ai.definePrompt({
   name: 'continueDialoguePrompt',
   input: {schema: ContinueDialogueInputSchema},
   output: {schema: ContinueDialogueOutputSchema},
-  prompt: `You are a facilitator for a personal advisory board. A user is asking a follow-up question. Your task is to provide an answer from the perspective of ONE specific advisor if they are mentioned by name. If no specific advisor is mentioned, provide a general answer from the facilitator's perspective.
+  prompt: `You are a facilitator for a personal advisory board. Your task is to provide an answer to the user's follow-up question.
 Your response MUST be in Russian.
 
 The advisors are:
@@ -51,11 +51,10 @@ Conversation History:
 User's new question: {{question}}
 
 INSTRUCTIONS:
-1.  Analyze the "User's new question".
-2.  Check if it contains an advisor's name (e.g., "Наваль", "Питер", "Гэри").
-3.  IF a name IS PRESENT, you MUST answer ONLY from that advisor's perspective, using their known style from the conversation history. Start the response with their name (e.g., "Наваль: ..."). DO NOT include responses from other advisors.
-4.  IF NO advisor name IS MENTIONED, provide a general, helpful response as the facilitator.
-5.  The answer must be concise and directly address the user's question.
+1.  Examine the "User's new question" to see if it explicitly mentions an advisor by name (e.g., "Наваль", "Питер", "Гэри").
+2.  **IF A NAME IS MENTIONED:** You MUST answer exclusively from that single advisor's perspective, using their known style and principles from the conversation history. Begin the response with their name (e.g., "Наваль: ..."). Do not invent a response or ask other advisors.
+3.  **IF NO NAME IS MENTIONED:** You MUST answer from the perspective of the facilitator, providing a general, helpful, and synthesized response based on the entire conversation.
+4.  The answer must be concise and directly address the user's question.
   `,
 });
 
