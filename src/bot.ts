@@ -47,6 +47,7 @@ bot.on('message', async (msg) => {
   try {
     if (isNewConversation) {
       // Start of a new conversation
+      resetUserState(chatId); // Clear any old state
       await bot.sendMessage(chatId, 'Анализирую вашу ситуацию, это может занять некоторое время...');
 
       const result = await simulateAdvisorAdvice({
