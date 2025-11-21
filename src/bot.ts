@@ -45,7 +45,7 @@ bot.on('message', async (msg) => {
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
     resetUserState(chatId);
-    await bot.sendMessage(chatId, 'Здравствуйте! Опишите вашу ситуацию, и я предложу вам 5 персон, наиболее подходящих для вашего персонального Совета директоров.');
+    await bot.sendMessage(chatId, `Здравствуйте! Опишите вашу ситуацию, и я предложу вам 5 персон, наиболее подходящих для вашего персонального Совета директоров.`);
     return; // CRITICAL FIX: Stop further execution for /start command
   }
 
@@ -275,3 +275,5 @@ const cleanup = async () => {
 
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
+
+    
