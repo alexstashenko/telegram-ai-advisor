@@ -22,7 +22,7 @@ const SelectAdvisorsOutputSchema = z.object({
       z.object({
         id: z.string().describe('The unique identifier for the advisor.'),
         name: z.string().describe('The name of the advisor.'),
-        description: z.string().describe('A brief (3-5 word) description of the advisor\'s expertise, e.g., "startup philosophy" or "creative mindset".'),
+        description: z.string().describe('A brief (3-5 word) description of the advisor\'s expertise relevant to the specific situation.'),
       })
     )
     .length(5)

@@ -28,7 +28,7 @@ export type SimulateAdvisorAdviceInput = z.infer<
 const SimulateAdvisorAdviceOutputSchema = z.object({
   advisorAdvices: z.array(
     z.object({
-      advisorName: z.string().describe("The ID of the advisor."),
+      advisorId: z.string().describe("The ID of the advisor."),
       advice: z.string(),
     })
   ),
@@ -52,6 +52,7 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
       situationDescription: z.string(),
       advisorDetails: z.array(
         z.object({
+          id: z.string(), // Important to have ID here for mapping
           name: z.string(),
           style: z.string(),
           principles: z.string(),
@@ -60,7 +61,15 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
       ),
     }),
   },
-  output: {schema: SimulateAdvisorAdviceOutputSchema},
+  output: {schema: z.object({
+      advisorAdvices: z.array(
+        z.object({
+          advisorName: z.string().describe("The full name of the advisor."),
+          advice: z.string(),
+        })
+      ),
+      synthesis: z.string().describe('A synthesis of the advice from all advisors.'),
+    })},
   prompt: `You are a facilitator of a personal advisory board. You will provide advice from each of the selected advisors based on their known philosophies. Your response MUST be in Russian.
 
   The user's situation is:
@@ -97,26 +106,36 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
         ...profile
       };
     });
-    
-    const promptAdvisorDetails = advisorDetails.map(({ id, ...rest }) => rest);
 
-    const {output} = await simulateAdvisorAdvicePrompt({
+    const {output: rawOutput} = await simulateAdvisorAdvicePrompt({
       situationDescription: input.situationDescription,
-      advisorDetails: promptAdvisorDetails,
+      advisorDetails: advisorDetails, // Pass details with ID
     });
 
-    if (!output || !output.advisorAdvices) {
+    if (!rawOutput || !rawOutput.advisorAdvices) {
       throw new Error('AI model returned invalid output.');
     }
 
-    // Map advisor names back to IDs for consistent handling in the bot
-    output.advisorAdvices.forEach(advice => {
-      const advisorDetail = advisorDetails.find(d => d.name === advice.advisorName);
-      if (advisorDetail) {
-        advice.advisorName = advisorDetail.id;
+    // Map advisor names from the output back to the original IDs.
+    const mappedAdvices = rawOutput.advisorAdvices.map(adviceItem => {
+      const matchingAdvisor = advisorDetails.find(d => d.name === adviceItem.advisorName);
+      if (!matchingAdvisor) {
+        // This case is unlikely if the model follows instructions, but it's a good safeguard.
+        console.warn(`Could not map advisor name "${adviceItem.advisorName}" back to an ID.`);
+        return {
+          advisorId: 'unknown',
+          advice: adviceItem.advice,
+        };
       }
+      return {
+        advisorId: matchingAdvisor.id, // The crucial mapping back to the ID
+        advice: adviceItem.advice,
+      };
     });
 
-    return output;
+    return {
+        synthesis: rawOutput.synthesis,
+        advisorAdvices: mappedAdvices,
+    };
   }
 );

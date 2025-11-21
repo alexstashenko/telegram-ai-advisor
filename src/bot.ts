@@ -42,6 +42,7 @@ bot.on('message', async (msg) => {
 
   if (!text) return;
 
+  // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
     resetUserState(chatId);
     await bot.sendMessage(chatId, 'Здравствуйте! Опишите вашу ситуацию, и я предложу вам 5 персон, наиболее подходящих для вашего персонального Совета директоров.');
@@ -63,9 +64,15 @@ bot.on('message', async (msg) => {
         await handleFollowUp(chatId, text, currentState as Required<UserState>);
         break;
 
-      default:
+      case 'awaiting_advisor_selection':
         // If user sends a message while they should be clicking buttons
-        await bot.sendMessage(chatId, `Пожалуйста, выберите ${REQUIRED_ADVISORS} советников, нажимая на кнопки выше.`);
+        await bot.sendMessage(chatId, `Пожалуйста, выберите ровно ${REQUIRED_ADVISORS} советников, нажимая на кнопки выше.`);
+        break;
+        
+      default:
+        // Fallback for any unknown state
+        resetUserState(chatId);
+        await bot.sendMessage(chatId, 'Произошла ошибка в логике. Начинаем заново. Опишите вашу ситуацию.');
         break;
     }
   } catch (error) {
@@ -123,10 +130,13 @@ bot.on('callback_query', async (callbackQuery) => {
     const isSelected = currentState.selectedAdvisors.includes(advisorId);
 
     if (isSelected) {
+      // Deselect
       currentState.selectedAdvisors = currentState.selectedAdvisors.filter(id => id !== advisorId);
     } else if (currentState.selectedAdvisors.length < REQUIRED_ADVISORS) {
+      // Select
       currentState.selectedAdvisors.push(advisorId);
     } else {
+      // Max number of advisors already selected
       await bot.answerCallbackQuery(callbackQuery.id, { text: `Вы можете выбрать только ${REQUIRED_ADVISORS} советников.`, show_alert: true });
       return;
     }
@@ -138,11 +148,10 @@ bot.on('callback_query', async (callbackQuery) => {
     const newKeyboard = oldKeyboard.map(row => row.map(button => {
         const buttonAdvisorId = button.callback_data!.split('_')[1];
         const isButtonSelected = currentState.selectedAdvisors!.includes(buttonAdvisorId);
-        // Ensure text is a string before calling replace
-        const buttonText = button.text || '';
+        const buttonText = button.text.replace('✅ ', ''); // Clean text first
         return {
             ...button,
-            text: isButtonSelected ? `✅ ${buttonText.replace('✅ ', '')}` : buttonText.replace('✅ ', ''),
+            text: isButtonSelected ? `✅ ${buttonText}` : buttonText,
         };
     }));
 
@@ -151,7 +160,7 @@ bot.on('callback_query', async (callbackQuery) => {
     
     // Check if we have enough advisors to proceed
     if (currentState.selectedAdvisors.length === REQUIRED_ADVISORS) {
-        await bot.sendMessage(chatId, 'Отличный выбор! Готовлю персональные советы...');
+        await bot.editMessageText(`Вы выбрали своих советников. Готовлю персональные советы...`, { chat_id: chatId, message_id: messageId });
         await generateInitialAdvice(chatId, currentState as Required<UserState>);
     }
 });
@@ -180,8 +189,8 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     ];
 
     result.advisorAdvices.forEach(advice => {
-        const profile = advisorProfiles[advice.advisorName as keyof typeof advisorProfiles];
-        const advisorName = profile ? profile.name : advice.advisorName;
+        const profile = advisorProfiles[advice.advisorId as keyof typeof advisorProfiles];
+        const advisorName = profile ? profile.name : advice.advisorId;
         const adviceText = `*${advisorName}:*\n${advice.advice}\n`;
         initialModelResponse += `\n${adviceText}`;
         newHistory.push({ role: 'model', content: `Ответ от ${advisorName}: ${advice.advice}` });
@@ -197,7 +206,7 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     });
 
     await bot.sendMessage(chatId, initialModelResponse, { parse_mode: 'Markdown' });
-    await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников. Например: "Наваль, что ты думаешь о..."`);
+    await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников. Например: "Стив, что ты думаешь о..."`);
 }
 
 
@@ -211,8 +220,8 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
 
     const newHistory: DialogueState['history'] = [
         ...state.dialogue.history,
-        { role: 'user' as const, content: text },
-        { role: 'model' as const, content: followUpResult.answer }
+        { role: 'user', content: text },
+        { role: 'model', content: followUpResult.answer }
     ];
     const followUpsRemaining = state.dialogue.followUpsRemaining - 1;
 
