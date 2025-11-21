@@ -1,3 +1,22 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "naval-ravikant",
+      "description": "Portrait of Naval Ravikant",
+      "imageUrl": "https://images.unsplash.com/photo-1636377985931-898218afd306?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHxtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjM3MDc5ODN8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man portrait"
+    },
+    {
+      "id": "pieter-levels",
+      "description": "Portrait of Pieter Levels",
+      "imageUrl": "https://images.unsplash.com/photo-1714356333088-45a9ba618365?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bWFuJTIwZ2xhc3Nlc3xlbnwwfHx8fDE3NjM2OTc5MDZ8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man glasses"
+    },
+    {
+      "id": "gary-vaynerchuk",
+      "description": "Portrait of Gary Vaynerchuk",
+      "imageUrl": "https://images.unsplash.com/photo-1599672525873-5763d2a823e2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHxtYW4lMjBzcGVha2luZ3xlbnwwfHx8fDE3NjM3MjExMDh8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man speaking"
+    }
+  ]
 }
