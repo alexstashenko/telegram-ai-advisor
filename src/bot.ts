@@ -46,7 +46,7 @@ bot.on('message', async (msg) => {
   if (text.startsWith('/start')) {
     resetUserState(chatId);
     await bot.sendMessage(chatId, 'Здравствуйте! Опишите вашу ситуацию, и я предложу вам 5 персон, наиболее подходящих для вашего персонального Совета директоров.');
-    return;
+    return; // CRITICAL FIX: Stop further execution for /start command
   }
 
   const currentState = userState.get(chatId) || { stage: 'awaiting_situation' };
