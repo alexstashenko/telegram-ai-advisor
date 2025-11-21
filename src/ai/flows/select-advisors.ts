@@ -57,13 +57,10 @@ USER'S SITUATION:
 INSTRUCTIONS:
 1. Analyze the user's situation deeply.
 2. CREATE exactly 5 advisors who would provide diverse, valuable perspectives for THIS specific situation.
-3. You can choose:
-   - Real historical or contemporary figures (e.g., Elon Musk, Marie Curie, Warren Buffett, Oprah Winfrey)
-   - Fictional characters if highly relevant (e.g., Sherlock Holmes for analytical thinking)
-   - Archetypal roles (e.g., "Experienced Startup CTO", "Seasoned Therapist")
+3. You can choose: Real historical or contemporary figures (e.g., Elon Musk, Marie Curie, Warren Buffett, Oprah Winfrey)
 4. Ensure DIVERSITY: different fields, thinking styles, backgrounds, perspectives.
 5. For EACH advisor, provide:
-   - id: lowercase name without spaces (e.g., "elonmusk", "mariecurie", "experiencedcto")
+   - id: lowercase name without spaces (e.g., "elonmusk", "mariecurie", "warrenbuffett")
    - name: Full name or title, translated into a standard RUSSIAN TRANSCRIPTION (e.g., "Илон Маск", "Мария Кюри").
    - description: Very brief (3-5 words) explanation of why they are relevant to THIS situation. This description MUST BE ENTIRELY IN LOWERCASE.
    - style: How they think and communicate (in Russian).
