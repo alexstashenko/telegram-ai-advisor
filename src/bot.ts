@@ -143,6 +143,9 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
     
+    // CRITICAL: Save state AFTER modification.
+    userState.set(chatId, currentState);
+
     // Update keyboard to show checkmarks
     const oldKeyboard = callbackQuery.message!.reply_markup!.inline_keyboard;
     const newKeyboard = oldKeyboard.map(row => row.map(button => {
@@ -159,9 +162,6 @@ bot.on('callback_query', async (callbackQuery) => {
     await bot.editMessageReplyMarkup({ inline_keyboard: newKeyboard }, { chat_id: chatId, message_id: messageId });
     await bot.answerCallbackQuery(callbackQuery.id);
     
-    // CRITICAL: Save state AFTER modification and BEFORE next step.
-    userState.set(chatId, currentState);
-
     // Check if we have enough advisors to proceed
     if (currentState.selectedAdvisors.length === REQUIRED_ADVISORS) {
         await bot.editMessageText(`Отличный выбор! Готовлю персональные советы...`, { chat_id: chatId, message_id: messageId });
