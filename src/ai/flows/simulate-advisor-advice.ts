@@ -74,7 +74,7 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
   INSTRUCTIONS:
   1. For EACH advisor, provide their specific advice based on their profile. The advice for EACH advisor must be CONCISE (3-4 sentences).
   2. Then, provide a "synthesis": a short, actionable summary of all advice. The synthesis must also be CONCISE (3-4 sentences).
-  3. The 'advisorName' in the output JSON must be the original ID string for that advisor.
+  3. The 'advisorName' in the output JSON must be the original name string for that advisor.
 
   Output the advice in the specified JSON format.
   `,
@@ -98,7 +98,6 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
       };
     });
     
-    // Create a version of advisorDetails for the prompt without the 'id' field
     const promptAdvisorDetails = advisorDetails.map(({ id, ...rest }) => rest);
 
     const {output} = await simulateAdvisorAdvicePrompt({
@@ -106,17 +105,11 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
       advisorDetails: promptAdvisorDetails,
     });
 
-    if (!output) {
-      throw new Error('AI model returned no output.');
+    if (!output || !output.advisorAdvices) {
+      throw new Error('AI model returned invalid output.');
     }
 
-    // Filter out any potentially empty/null advice objects
-    output.advisorAdvices =
-      output.advisorAdvices?.filter(
-        advice => advice && advice.advisorName && advice.advice
-      ) || [];
-      
-    // Map IDs back if necessary (model should return them, but as a fallback)
+    // Map advisor names back to IDs for consistent handling in the bot
     output.advisorAdvices.forEach(advice => {
       const advisorDetail = advisorDetails.find(d => d.name === advice.advisorName);
       if (advisorDetail) {

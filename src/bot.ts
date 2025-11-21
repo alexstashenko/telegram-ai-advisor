@@ -120,12 +120,11 @@ bot.on('callback_query', async (callbackQuery) => {
     }
 
     const advisorId = data.split('_')[1];
-    const selectedCount = currentState.selectedAdvisors.length;
     const isSelected = currentState.selectedAdvisors.includes(advisorId);
 
     if (isSelected) {
       currentState.selectedAdvisors = currentState.selectedAdvisors.filter(id => id !== advisorId);
-    } else if (selectedCount < REQUIRED_ADVISORS) {
+    } else if (currentState.selectedAdvisors.length < REQUIRED_ADVISORS) {
       currentState.selectedAdvisors.push(advisorId);
     } else {
       await bot.answerCallbackQuery(callbackQuery.id, { text: `Вы можете выбрать только ${REQUIRED_ADVISORS} советников.`, show_alert: true });
@@ -139,9 +138,11 @@ bot.on('callback_query', async (callbackQuery) => {
     const newKeyboard = oldKeyboard.map(row => row.map(button => {
         const buttonAdvisorId = button.callback_data!.split('_')[1];
         const isButtonSelected = currentState.selectedAdvisors!.includes(buttonAdvisorId);
+        // Ensure text is a string before calling replace
+        const buttonText = button.text || '';
         return {
             ...button,
-            text: isButtonSelected ? `✅ ${button.text.replace('✅ ', '')}` : button.text.replace('✅ ', ''),
+            text: isButtonSelected ? `✅ ${buttonText.replace('✅ ', '')}` : buttonText.replace('✅ ', ''),
         };
     }));
 
@@ -179,7 +180,8 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     ];
 
     result.advisorAdvices.forEach(advice => {
-        const advisorName = advisorProfiles[advice.advisorName as keyof typeof advisorProfiles].name;
+        const profile = advisorProfiles[advice.advisorName as keyof typeof advisorProfiles];
+        const advisorName = profile ? profile.name : advice.advisorName;
         const adviceText = `*${advisorName}:*\n${advice.advice}\n`;
         initialModelResponse += `\n${adviceText}`;
         newHistory.push({ role: 'model', content: `Ответ от ${advisorName}: ${advice.advice}` });
@@ -207,16 +209,25 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         history: state.dialogue.history,
     });
 
-    state.dialogue.history.push({ role: 'user', content: text });
-    state.dialogue.history.push({ role: 'model', content: followUpResult.answer });
-    state.dialogue.followUpsRemaining--;
-    
-    userState.set(chatId, state);
+    const newHistory = [
+        ...state.dialogue.history,
+        { role: 'user', content: text },
+        { role: 'model', content: followUpResult.answer }
+    ];
+    const followUpsRemaining = state.dialogue.followUpsRemaining - 1;
+
+    userState.set(chatId, {
+      ...state,
+      dialogue: {
+        history: newHistory,
+        followUpsRemaining: followUpsRemaining,
+      }
+    });
 
     await bot.sendMessage(chatId, followUpResult.answer, { parse_mode: 'Markdown' });
 
-    if (state.dialogue.followUpsRemaining > 0) {
-        await bot.sendMessage(chatId, `Осталось вопросов: ${state.dialogue.followUpsRemaining}.`);
+    if (followUpsRemaining > 0) {
+        await bot.sendMessage(chatId, `Осталось вопросов: ${followUpsRemaining}.`);
     } else {
         await bot.sendMessage(chatId, 'Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
         resetUserState(chatId);
