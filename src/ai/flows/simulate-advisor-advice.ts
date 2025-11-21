@@ -34,18 +34,21 @@ export async function simulateAdvisorAdvice(input: SimulateAdvisorAdviceInput): 
   return simulateAdvisorAdviceFlow(input);
 }
 
-const advisorProfiles = {
+export const advisorProfiles = {
   NavalRavikant: {
+    name: 'Наваль Равикант',
     style: 'Philosophical, strategic, long-term thinking, analogies.',
     principles: 'Seek wealth, not money or status. Build specific knowledge. Leverage through code, media, and people. Read what you love. Free markets and individual responsibility.',
     tone: 'Calm, thoughtful, insightful',
   },
   PieterLevels: {
+    name: 'Питер Левелс',
     style: 'Practical, tactical, concrete steps, execution focus.',
     principles: 'Build in public, ship fast, iterate quickly. Minimum viable product -> revenue -> scale. Automation and solo-entrepreneurship. Data-driven decisions. Bootstrap approach.',
     tone: 'Direct, technical, humorous',
   },
   GaryVaynerchuk: {
+    name: 'Гэри Вайнерчук',
     style: 'Energetic, motivational, action-oriented, work ethic.',
     principles: 'Extreme execution. Document, don\'t create. Attention is the main currency. Self-awareness. Patience + aggression. Long-term brand building.',
     tone: 'Passionate, intense, realistic',
@@ -104,7 +107,7 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
     outputSchema: SimulateAdvisorAdviceOutputSchema,
   },
   async input => {
-    const {output} = await simulateAdvisorAdvicePrompt(input);
+    const {output} = await simulateAdvisorAdvicePrompt({ ...input, advisorProfiles });
 
     // Filter out undefined or null values from advisorAdvices
     if (output && output.advisorAdvices) {
