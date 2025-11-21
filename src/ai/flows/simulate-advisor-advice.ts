@@ -111,7 +111,6 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
   },
   async input => {
     const advisorDetails = input.selectedAdvisors.map(id => ({
-        id,
         ...advisorProfiles[id],
     }));
 
@@ -124,7 +123,8 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
       throw new Error('AI model returned no output.');
     }
     
-    output.advisorAdvices = output.advisorAdvices?.filter(advice => advice) || [];
+    // Filter out any potentially empty/null advice objects
+    output.advisorAdvices = output.advisorAdvices?.filter(advice => advice && advice.advisorName && advice.advice) || [];
 
     return output;
   }
