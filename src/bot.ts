@@ -243,7 +243,7 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     });
 
     await bot.sendMessage(chatId, initialModelResponse, { parse_mode: 'Markdown' });
-    await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников.`);
+    await bot.sendMessage(chatId, `Теперь вы можете задать до ${MAX_FOLLOW_UPS} уточняющих вопросов любому из советников. Укажите его имя в начале вопроса.`);
 }
 
 
