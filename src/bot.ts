@@ -59,7 +59,9 @@ bot.on('message', async (msg) => {
       
       case 'in_dialogue':
         if (!currentState.dialogue) { // Should not happen
-          throw new Error("Dialogue state is missing.");
+          resetUserState(chatId);
+          await bot.sendMessage(chatId, 'Произошла ошибка в диалоге. Начинаем заново. Опишите вашу ситуацию.');
+          return;
         }
         await handleFollowUp(chatId, text, currentState as Required<UserState>);
         break;
@@ -87,8 +89,8 @@ async function handleSituation(chatId: number, situation: string) {
   
   const potentialAdvisors = await selectAdvisors({ situationDescription: situation });
 
-  if (!potentialAdvisors || potentialAdvisors.advisors.length === 0) {
-    await bot.sendMessage(chatId, 'Не удалось подобрать советников для вашей ситуации. Попробуйте переформулировать запрос.');
+  if (!potentialAdvisors || potentialAdvisors.advisors.length < REQUIRED_ADVISORS) {
+    await bot.sendMessage(chatId, 'Не удалось подобрать достаточное количество советников для вашей ситуации. Попробуйте переформулировать запрос.');
     return;
   }
   
@@ -122,7 +124,7 @@ bot.on('callback_query', async (callbackQuery) => {
     
     const currentState = userState.get(chatId);
     if (!currentState || currentState.stage !== 'awaiting_advisor_selection' || !currentState.selectedAdvisors) {
-        await bot.answerCallbackQuery(callbackQuery.id, { text: "Пожалуйста, начните сначала с /start."});
+        await bot.answerCallbackQuery(callbackQuery.id, { text: "Сессия истекла. Пожалуйста, начните сначала с /start."});
         return;
     }
 
@@ -141,14 +143,13 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
     
-    userState.set(chatId, currentState);
-
     // Update keyboard to show checkmarks
     const oldKeyboard = callbackQuery.message!.reply_markup!.inline_keyboard;
     const newKeyboard = oldKeyboard.map(row => row.map(button => {
         const buttonAdvisorId = button.callback_data!.split('_')[1];
         const isButtonSelected = currentState.selectedAdvisors!.includes(buttonAdvisorId);
-        const buttonText = button.text.replace('✅ ', ''); // Clean text first
+        // Clean text first by removing any existing checkmark
+        const buttonText = button.text.startsWith('✅ ') ? button.text.substring(2) : button.text;
         return {
             ...button,
             text: isButtonSelected ? `✅ ${buttonText}` : buttonText,
@@ -158,9 +159,12 @@ bot.on('callback_query', async (callbackQuery) => {
     await bot.editMessageReplyMarkup({ inline_keyboard: newKeyboard }, { chat_id: chatId, message_id: messageId });
     await bot.answerCallbackQuery(callbackQuery.id);
     
+    // CRITICAL: Save state AFTER modification and BEFORE next step.
+    userState.set(chatId, currentState);
+
     // Check if we have enough advisors to proceed
     if (currentState.selectedAdvisors.length === REQUIRED_ADVISORS) {
-        await bot.editMessageText(`Вы выбрали своих советников. Готовлю персональные советы...`, { chat_id: chatId, message_id: messageId });
+        await bot.editMessageText(`Отличный выбор! Готовлю персональные советы...`, { chat_id: chatId, message_id: messageId });
         await generateInitialAdvice(chatId, currentState as Required<UserState>);
     }
 });
@@ -247,7 +251,7 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
 // Suppress the ETELEGRAM error in the development environment
 bot.on('polling_error', (error) => {
     if ((error as any).code === 'ETELEGRAM' && (error as any).message.includes('409 Conflict')) {
-        console.log('Ignoring ETELEGRAM 409 Conflict error during development restart.');
+        // console.log('Ignoring ETELEGRAM 409 Conflict error during development restart.');
     } else {
         console.error('Polling error:', error);
     }

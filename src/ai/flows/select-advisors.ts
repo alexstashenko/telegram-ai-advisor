@@ -22,7 +22,7 @@ const SelectAdvisorsOutputSchema = z.object({
       z.object({
         id: z.string().describe('The unique identifier for the advisor.'),
         name: z.string().describe('The name of the advisor.'),
-        description: z.string().describe('A brief (3-5 word) description of the advisor\'s expertise relevant to the specific situation.'),
+        description: z.string().describe('A very brief (3-5 word) description of the advisor\'s expertise relevant to the specific situation.'),
       })
     )
     .length(5)
@@ -52,7 +52,7 @@ const selectAdvisorsPrompt = ai.definePrompt({
   },
   output: {schema: SelectAdvisorsOutputSchema},
   prompt: `You are an expert at assembling personal advisory boards.
-Your task is to select the 5 most relevant advisors from the provided list to help with the user's situation. Ensure a diversity of perspectives (e.g., mix entrepreneurs with artists, strategists with creatives). Your response MUST be in Russian.
+Your task is to select the 5 most relevant advisors from the provided list to help with the user's situation. Ensure a diversity of perspectives. Your response MUST be in Russian.
 
 USER'S SITUATION:
 "{{situationDescription}}"
@@ -63,10 +63,10 @@ AVAILABLE ADVISORS:
 {{/each}}
 
 INSTRUCTIONS:
-1. Analyze the user's situation.
-2. Select exactly 5 advisors from the list who would provide the most valuable and diverse insights.
-3. For each of the 5 selected advisors, provide a new, very brief (3-5 word) description of why they are relevant to THIS specific situation.
-4. Output the result in the specified JSON format. The 'id' and 'name' must match the original advisor data.
+1.  Analyze the user's situation carefully.
+2.  Select exactly 5 advisors from the list who would provide the most valuable and diverse insights for this specific problem.
+3.  For each of the 5 selected advisors, write a new, very concise (3-5 word) description explaining why they are a good fit for THIS situation.
+4.  Output the result in the specified JSON format. The 'id' and 'name' must match the original advisor data exactly.
 `,
 });
 

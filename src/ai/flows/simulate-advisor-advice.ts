@@ -18,7 +18,7 @@ const SimulateAdvisorAdviceInputSchema = z.object({
     .describe('The user-provided description of their situation.'),
   selectedAdvisors: z
     .array(z.string())
-    .describe('An array of selected advisor IDs.'),
+    .describe('An array of selected advisor IDs (e.g., ["NavalRavikant", "SteveJobs"]).'),
 });
 
 export type SimulateAdvisorAdviceInput = z.infer<
@@ -28,11 +28,11 @@ export type SimulateAdvisorAdviceInput = z.infer<
 const SimulateAdvisorAdviceOutputSchema = z.object({
   advisorAdvices: z.array(
     z.object({
-      advisorId: z.string().describe("The ID of the advisor."),
-      advice: z.string(),
+      advisorId: z.string().describe("The ID of the advisor (e.g., NavalRavikant)."),
+      advice: z.string().describe("The concise advice from this advisor (3-4 sentences)."),
     })
   ),
-  synthesis: z.string().describe('A synthesis of the advice from all advisors.'),
+  synthesis: z.string().describe('A concise synthesis of the advice from all advisors (3-4 sentences).'),
 });
 
 export type SimulateAdvisorAdviceOutput = z.infer<
@@ -52,7 +52,7 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
       situationDescription: z.string(),
       advisorDetails: z.array(
         z.object({
-          id: z.string(), // Important to have ID here for mapping
+          id: z.string(),
           name: z.string(),
           style: z.string(),
           principles: z.string(),
@@ -65,17 +65,17 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
       advisorAdvices: z.array(
         z.object({
           advisorName: z.string().describe("The full name of the advisor."),
-          advice: z.string(),
+          advice: z.string().describe("The concise advice from this advisor (3-4 sentences)."),
         })
       ),
-      synthesis: z.string().describe('A synthesis of the advice from all advisors.'),
+      synthesis: z.string().describe('A concise, actionable summary of all advice (3-4 sentences).'),
     })},
   prompt: `You are a facilitator of a personal advisory board. You will provide advice from each of the selected advisors based on their known philosophies. Your response MUST be in Russian.
 
   The user's situation is:
   "{{situationDescription}}"
 
-  Here are the advisor profiles:
+  Here are the advisor profiles you must use:
   {{#each advisorDetails}}
   - Advisor: {{this.name}} (Style: {{this.style}}, Principles: {{this.principles}}, Tone: {{this.tone}})
   {{/each}}
@@ -96,43 +96,54 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
     outputSchema: SimulateAdvisorAdviceOutputSchema,
   },
   async input => {
+    // 1. Get profiles for the selected advisors.
     const advisorDetails = input.selectedAdvisors.map(id => {
       const profile = advisorProfiles[id as keyof typeof advisorProfiles];
       if (!profile) {
         throw new Error(`Advisor profile for ID "${id}" not found.`);
       }
       return {
-        id, // pass the id through
+        id, // Pass the id through for mapping later
         ...profile
       };
     });
 
+    if (advisorDetails.length === 0) {
+        throw new Error('No valid advisors were provided to the flow.');
+    }
+
+    // 2. Call the AI model with the prepared details.
     const {output: rawOutput} = await simulateAdvisorAdvicePrompt({
       situationDescription: input.situationDescription,
-      advisorDetails: advisorDetails, // Pass details with ID
+      advisorDetails: advisorDetails,
     });
 
     if (!rawOutput || !rawOutput.advisorAdvices) {
-      throw new Error('AI model returned invalid output.');
+      throw new Error('AI model returned invalid or empty output.');
     }
 
-    // Map advisor names from the output back to the original IDs.
+    // 3. Map the results back, ensuring correct ID association.
     const mappedAdvices = rawOutput.advisorAdvices.map(adviceItem => {
       const matchingAdvisor = advisorDetails.find(d => d.name === adviceItem.advisorName);
+      
       if (!matchingAdvisor) {
-        // This case is unlikely if the model follows instructions, but it's a good safeguard.
+        // This is a safeguard. If the model hallucinates a name, we'll know.
         console.warn(`Could not map advisor name "${adviceItem.advisorName}" back to an ID.`);
+        // To prevent a crash, we can either throw or return a placeholder.
+        // Let's return a placeholder but the real fix is a good prompt.
         return {
           advisorId: 'unknown',
           advice: adviceItem.advice,
         };
       }
+
       return {
-        advisorId: matchingAdvisor.id, // The crucial mapping back to the ID
+        advisorId: matchingAdvisor.id, // The crucial mapping back to the original ID
         advice: adviceItem.advice,
       };
     });
 
+    // 4. Return the final, correctly structured output.
     return {
         synthesis: rawOutput.synthesis,
         advisorAdvices: mappedAdvices,
