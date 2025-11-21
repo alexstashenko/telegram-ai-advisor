@@ -1,3 +1,4 @@
+'use server';
 import 'dotenv/config';
 import './ai/genkit'; // Initialize Genkit
 import TelegramBot from 'node-telegram-bot-api';
@@ -112,12 +113,26 @@ bot.on('message', async (msg) => {
   }
 });
 
+// Suppress the ETELEGRAM error in the development environment
+bot.on('polling_error', (error) => {
+    if ((error as any).code === 'ETELEGRAM' && (error as any).message.includes('409 Conflict')) {
+        // This error happens during development when the server restarts.
+        // It's a conflict between the old and new bot instances.
+        // We can safely ignore it in a dev environment.
+        console.log('Ignoring ETELEGRAM 409 Conflict error during development restart.');
+    } else {
+        console.error('Polling error:', error);
+    }
+});
+
 console.log('Telegram bot started...');
 
 // Graceful shutdown
 const cleanup = async () => {
   console.log('Stopping Telegram bot...');
-  await bot.stopPolling();
+  if (bot.isPolling()) {
+    await bot.stopPolling();
+  }
   console.log('Telegram bot stopped.');
   process.exit(0);
 };
