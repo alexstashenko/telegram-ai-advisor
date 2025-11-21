@@ -64,15 +64,16 @@ bot.on('message', async (msg) => {
       let initialModelResponse = `*Синтезированный план действий:*\n${result.synthesis}\n\n`;
       initialModelResponse += '*Рекомендации от каждого советника:*\n';
       
+      const newHistory: Array<{ role: 'user' | 'model'; content: string }> = [
+        { role: 'user', content: `Моя ситуация: ${text}` },
+      ];
+
       result.advisorAdvices.forEach(advice => {
         const advisorName = advisorProfiles[advice.advisorName as keyof typeof advisorProfiles].name;
-        initialModelResponse += `\n*${advisorName}:*\n${advice.advice}\n`;
+        const adviceText = `*${advisorName}:*\n${advice.advice}\n`;
+        initialModelResponse += `\n${adviceText}`;
+        newHistory.push({ role: 'model', content: adviceText });
       });
-      
-      const newHistory = [
-          { role: 'user' as const, content: `Моя ситуация: ${text}` },
-          { role: 'model' as const, content: initialModelResponse },
-      ];
 
       userState.set(chatId, {
         history: newHistory,
@@ -95,7 +96,7 @@ bot.on('message', async (msg) => {
       currentState.history.push({ role: 'model', content: followUpResult.answer });
       currentState.followUpsRemaining--;
       
-      userState.set(chatId, currentState);
+      // No need to call userState.set, as we are modifying the object by reference
 
       await bot.sendMessage(chatId, followUpResult.answer, { parse_mode: 'Markdown' });
 
@@ -130,8 +131,12 @@ console.log('Telegram bot started...');
 // Graceful shutdown
 const cleanup = async () => {
   console.log('Stopping Telegram bot...');
-  if (bot.isPolling()) {
-    await bot.stopPolling();
+  try {
+      if (bot.isPolling()) {
+          await bot.stopPolling({ cancel: true });
+      }
+  } catch (err) {
+      console.error('Error stopping polling:', err);
   }
   console.log('Telegram bot stopped.');
   process.exit(0);
