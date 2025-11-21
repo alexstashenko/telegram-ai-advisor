@@ -108,12 +108,14 @@ const simulateAdvisorAdviceFlow = ai.defineFlow(
   },
   async input => {
     const {output} = await simulateAdvisorAdvicePrompt({ ...input, advisorProfiles });
-
-    // Filter out undefined or null values from advisorAdvices
-    if (output && output.advisorAdvices) {
-      output.advisorAdvices = output.advisorAdvices.filter(advice => advice !== undefined && advice !== null);
+    
+    if (!output) {
+      throw new Error('AI model returned no output.');
     }
+    
+    // Filter out undefined or null values from advisorAdvices
+    output.advisorAdvices = output.advisorAdvices?.filter(advice => advice) || [];
 
-    return output!;
+    return output;
   }
 );
