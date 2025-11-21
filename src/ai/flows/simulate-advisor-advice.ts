@@ -67,39 +67,21 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
     })),
   })},
   output: {schema: SimulateAdvisorAdviceOutputSchema},
-  prompt: `You are a facilitator of a personal advisory board consisting of three outstanding entrepreneurs and thinkers. You will provide advice from each of the selected advisors based on their known philosophies and approaches. Your response must be in Russian.
+  prompt: `You are a facilitator of a personal advisory board. You will provide advice from each of the selected advisors based on their known philosophies. Your response MUST be in Russian.
 
-  The user's situation is described as follows:
-  {{situationDescription}}
+  The user's situation is:
+  "{{situationDescription}}"
 
   Here are the advisor profiles:
   {{#each advisorDetails}}
-  Advisor Name: {{this.name}}
-  Style: {{this.style}}
-  Principles: {{this.principles}}
-  Tone: {{this.tone}}
+  - Advisor: {{this.name}} (Style: {{this.style}}, Principles: {{this.principles}}, Tone: {{this.tone}})
   {{/each}}
+  
+  INSTRUCTIONS:
+  1. For EACH advisor, provide their specific advice based on their profile. The advice for EACH advisor must be CONCISE (3-4 sentences).
+  2. Then, provide a "synthesis": a short, actionable summary of all advice. The synthesis must also be CONCISE (3-4 sentences).
 
-  Provide advice from each of the selected advisors, and then provide a synthesis of their advice.
-
-  Output the advice in the following JSON format:
-  {
-    "advisorAdvices": [
-      {
-        "advisorName": "NavalRavikant",
-        "advice": "...Naval's advice here..."
-      },
-      {
-        "advisorName": "PieterLevels",
-        "advice": "...Pieter's advice here..."
-      },
-      {
-        "advisorName": "GaryVaynerchuk",
-        "advice": "...GaryVee's advice here..."
-      }
-    ],
-    "synthesis": "...A synthesis of the advice from all advisors..."
-  }
+  Output the advice in the specified JSON format.
   `,
 });
 

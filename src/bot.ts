@@ -62,8 +62,8 @@ bot.on('message', async (msg) => {
         return;
       }
       
-      let initialModelResponse = `*Синтезированный план действий:*\n${result.synthesis}\n\n`;
-      initialModelResponse += '*Рекомендации от каждого советника:*\n';
+      let initialModelResponse = `*Общие рекомендации Совета:*\n${result.synthesis}\n\n`;
+      initialModelResponse += '*Мнение каждого советника:*\n';
       
       const newHistory: Array<{ role: 'user' | 'model'; content: string }> = [
         { role: 'user', content: `Моя ситуация: ${text}` },

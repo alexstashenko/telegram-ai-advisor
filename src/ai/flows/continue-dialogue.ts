@@ -52,9 +52,9 @@ User's new question: {{question}}
 
 INSTRUCTIONS:
 1.  Examine the "User's new question" to see if it explicitly mentions an advisor by name (e.g., "Наваль", "Питер", "Гэри").
-2.  **IF A NAME IS MENTIONED:** You MUST answer exclusively from that single advisor's perspective, using their known style and principles from the conversation history. Begin the response with their name (e.g., "Наваль: ..."). Do not invent a response or ask other advisors.
+2.  **IF A NAME IS MENTIONED:** You MUST answer exclusively from that single advisor's perspective, using their known style and principles.
 3.  **IF NO NAME IS MENTIONED:** You MUST answer from the perspective of the facilitator, providing a general, helpful, and synthesized response based on the entire conversation.
-4.  The answer must be concise and directly address the user's question.
+4.  The answer MUST be concise and to the point (3-4 sentences maximum).
   `,
 });
 
