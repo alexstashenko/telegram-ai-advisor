@@ -34,6 +34,7 @@ type UserState = {
   dialogue?: DialogueState;
   completedSessions?: number; // Количество завершенных сессий (для демо-режима)
   username?: string; // Username пользователя для отчета админу
+  firstName?: string; // Имя пользователя для отчета админу
   maxSessions?: number; // Максимальное количество сессий (по умолчанию MAX_DEMO_SESSIONS)
 };
 
@@ -98,7 +99,7 @@ bot.on('message', async (msg) => {
   try {
     switch (currentState.stage) {
       case 'awaiting_situation':
-        await handleSituation(chatId, text, msg.from?.username);
+        await handleSituation(chatId, text, msg.from?.username, msg.from?.first_name);
         break;
 
       case 'in_dialogue':
@@ -126,7 +127,7 @@ bot.on('message', async (msg) => {
   }
 });
 
-async function handleSituation(chatId: number, situation: string, username?: string) {
+async function handleSituation(chatId: number, situation: string, username?: string, firstName?: string) {
   // Проверка лимита демо-сессий
   const currentState = userState.get(chatId);
   const completedSessions = currentState?.completedSessions || 0;
@@ -165,6 +166,7 @@ async function handleSituation(chatId: number, situation: string, username?: str
     availableAdvisors: result.advisors,
     selectedAdvisorIds: [],
     username: username,
+    firstName: firstName,
     completedSessions: currentState?.completedSessions || 0,
   });
 
@@ -313,15 +315,18 @@ async function sendAdminReport(
   situation: string,
   allAdvisors: AdvisorProfile[],
   selectedAdvisorIds: string[],
-  username?: string
+  username?: string,
+  firstName?: string
 ) {
   try {
     let report = `📊 *Отчет о завершенной сессии*\n\n`;
-    report += `👤 *User ID:* ${chatId}`;
+    report += `👤 *User:* ${firstName || 'Без имени'}`;
     if (username) {
       report += ` (@${username})`;
     }
-    report += `\n🔢 *Сессия:* ${sessionNumber}/${MAX_DEMO_SESSIONS}\n\n`;
+    report += `\n🆔 *ID:* \`${chatId}\`\n`;
+    report += `🔑 *Grant:* \`/grant10 ${chatId}\`\n`;
+    report += `🔢 *Сессия:* ${sessionNumber}/${MAX_DEMO_SESSIONS}\n\n`;
     report += `📝 *Исходный запрос пользователя:*\n${situation}\n\n`;
     report += `👥 *Предложенные эксперты:*\n`;
 
@@ -377,7 +382,8 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         state.situation,
         state.availableAdvisors,
         state.selectedAdvisorIds,
-        state.username
+        state.username,
+        state.firstName
       );
     }
 
