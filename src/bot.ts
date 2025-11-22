@@ -351,6 +351,12 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
       );
     }
 
+    // Обновить счетчик сессий в state ПЕРЕД сбросом
+    userState.set(chatId, {
+      ...state,
+      completedSessions: completedSessions,
+    });
+
     if (completedSessions < MAX_DEMO_SESSIONS) {
       await bot.sendMessage(chatId,
         `Надеемся, это было полезно! ✨\n\n` +
