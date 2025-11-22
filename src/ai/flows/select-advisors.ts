@@ -60,7 +60,7 @@ INSTRUCTIONS:
 3. You can choose: real historical or contemporary figures (e.g., Elon Musk, Marie Curie, Warren Buffett, Oprah Winfrey)
 4. Ensure DIVERSITY: different fields, thinking styles, backgrounds, perspectives.
 5. For EACH advisor, provide:
-   - id: lowercase name without spaces (e.g., "elonmusk", "mariecurie", "experiencedcto")
+   - id: lowercase name without spaces (e.g., "elonmusk", "mariecurie")
    - name: Full name or title, translated into a standard RUSSIAN TRANSCRIPTION (e.g., "Илон Маск", "Мария Кюри").
    - description: Very brief (3 words) explanation of why they are relevant to THIS situation. This description MUST BE ENTIRELY IN LOWERCASE, in Russian, without dot at the end.
    - style: How they think and communicate (in Russian).
@@ -100,5 +100,3 @@ const selectAdvisorsFlow = ai.defineFlow(
     return output;
   }
 );
-
-    
