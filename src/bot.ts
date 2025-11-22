@@ -62,7 +62,7 @@ bot.on('message', async (msg) => {
 
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
-    resetUserState(chatId);
+    resetUserState(chatId, true); // Сохраняем счетчик сессий чтобы предотвратить обход лимита демо
     await bot.sendMessage(chatId, `Здравствуйте! Опишите вашу рабочую или жизненную ситуацию в 3-4 предложениях, и мы подберем для вас 5 экспертов, наиболее подходящих для вашего персонального Совета директоров.`);
     return;
   }
