@@ -47,9 +47,9 @@ User's new question: {{question}}
 
 INSTRUCTIONS:
 1.  Examine the "User's new question" and the "Conversation History" to understand which advisor is being addressed, or if it's a general question.
-2.  **IF AN ADVISOR IS MENTIONED:** You MUST answer exclusively from that single advisor's perspective, using their known style and principles.
+2.  **IF AN ADVISOR IS MENTIONED:** You MUST answer exclusively from that single advisor's perspective, using their known style and principles. Start from advisor's first name following colon.
 3.  **IF NO ADVISOR IS MENTIONED:** You MUST answer from the perspective of the facilitator, providing a general, helpful, and synthesized response based on the entire conversation.
-4.  The answer MUST be concise and to the point (3-4 sentences maximum).
+4.  The answer MUST be concise and to the point (3 sentences maximum).
   `,
 });
 
