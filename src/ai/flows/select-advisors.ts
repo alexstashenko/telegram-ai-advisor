@@ -19,7 +19,7 @@ export type SelectAdvisorsInput = z.infer<typeof SelectAdvisorsInputSchema>;
 export const AdvisorProfileSchema = z.object({
   id: z.string().describe('Unique identifier (use lowercase name without spaces, e.g., "elonmusk", "mariecurie")'),
   name: z.string().describe('Full name of the advisor, in Russian transcription.'),
-  description: z.string().describe('Brief (3-5 word) description of their expertise relevant to this situation, in lowercase.'),
+  description: z.string().describe('Brief (3 word) description of their expertise relevant to this situation, in lowercase, in Russian, without dot at the end.'),
   style: z.string().describe('Their communication and thinking style'),
   principles: z.string().describe('Key principles and philosophies they follow'),
   tone: z.string().describe('The tone they use when giving advice'),
@@ -57,15 +57,12 @@ USER'S SITUATION:
 INSTRUCTIONS:
 1. Analyze the user's situation deeply.
 2. CREATE exactly 5 advisors who would provide diverse, valuable perspectives for THIS specific situation.
-3. You can choose:
-   - Real historical or contemporary figures (e.g., Elon Musk, Marie Curie, Warren Buffett, Oprah Winfrey)
-   - Fictional characters if highly relevant (e.g., Sherlock Holmes for analytical thinking)
-   - Archetypal roles (e.g., "Experienced Startup CTO", "Seasoned Therapist")
+3. You can choose: real historical or contemporary figures (e.g., Elon Musk, Marie Curie, Warren Buffett, Oprah Winfrey)
 4. Ensure DIVERSITY: different fields, thinking styles, backgrounds, perspectives.
 5. For EACH advisor, provide:
    - id: lowercase name without spaces (e.g., "elonmusk", "mariecurie", "experiencedcto")
    - name: Full name or title, translated into a standard RUSSIAN TRANSCRIPTION (e.g., "Илон Маск", "Мария Кюри").
-   - description: Very brief (3-5 words) explanation of why they are relevant to THIS situation. This description MUST BE ENTIRELY IN LOWERCASE.
+   - description: Very brief (3 words) explanation of why they are relevant to THIS situation. This description MUST BE ENTIRELY IN LOWERCASE, in Russian, without dot at the end.
    - style: How they think and communicate (in Russian).
    - principles: Their core philosophies and approaches (in Russian).
    - tone: How they typically speak/advise (in Russian).
