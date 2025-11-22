@@ -61,7 +61,7 @@ bot.on('message', async (msg) => {
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
     resetUserSessionState(chatId);
-    await bot.sendMessage(chatId, `Здравствуйте! Это демо-режим персонального «Совета директоров». У вас есть возможность разобрать ${DEMO_CONSULTATIONS_LIMIT} ситуации.\n\nОпишите вашу первую ситуацию, и я подберу для вас 5 уникальных советников.`);
+    await bot.sendMessage(chatId, `Здравствуйте! Это демо-режим персонального "Совета директоров". У вас есть возможность разобрать ${DEMO_CONSULTATIONS_LIMIT} ситуации.\n\nОпишите вашу первую ситуацию, и я подберу для вас 5 уникальных советников.`);
     return;
   }
 
@@ -83,7 +83,7 @@ bot.on('message', async (msg) => {
         break;
 
       case 'awaiting_advisor_selection':
-        await bot.sendMessage(chatId, `Пожалуйста, выберите ровно ${REQUIRED_ADVISORS} советников, нажимая на кнопки выше.`);
+        await bot.sendMessage(chatId, `Пожалуйста, выберите ${REQUIRED_ADVISORS} советников, нажимая на кнопки выше.`);
         break;
         
       default:
@@ -115,7 +115,7 @@ async function handleSituation(chatId: number, situation: string, dbUser: DbUser
   }
 
   await bot.sendChatAction(chatId, 'typing');
-  await bot.sendMessage(chatId, 'Анализирую ситуацию и подбираю экспертов...');
+  await bot.sendMessage(chatId, 'Анализируем ситуацию и подбираем экспертов, 20-30 сек ...');
   
   const result = await selectAdvisors({ situationDescription: situation });
 
@@ -139,7 +139,7 @@ async function handleSituation(chatId: number, situation: string, dbUser: DbUser
     }]))
   };
 
-  await bot.sendMessage(chatId, `Отлично! Я подобрал для вас 5 экспертов. Выберите ровно ${REQUIRED_ADVISORS} из них:`, {
+  await bot.sendMessage(chatId, `Отлично! Мы подобрали для вас 5 экспертов. Выберите ${REQUIRED_ADVISORS} из них:`, {
     reply_markup: keyboard,
   });
 }
@@ -200,7 +200,7 @@ bot.on('callback_query', async (callbackQuery) => {
           advisor => updatedSelectedAdvisorIds.includes(advisor.id)
         );
         
-        await bot.editMessageText(`Отличный выбор! Готовлю персональные советы...`, { chat_id: chatId, message_id: messageId });
+        await bot.editMessageText(`Отличный выбор! Готовим персональные советы...`, { chat_id: chatId, message_id: messageId });
         await generateInitialAdvice(chatId, {
           ...updatedState,
           selectedAdvisors,
