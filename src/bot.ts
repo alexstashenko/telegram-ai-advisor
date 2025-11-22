@@ -37,7 +37,7 @@ const userSessionState = new Map<number, UserSessionState>();
 const MAX_FOLLOW_UPS = 3;
 const REQUIRED_ADVISORS = 3;
 const MAX_SITUATION_LENGTH = 2000;
-const DEMO_CONSULTATIONS_LIMIT = 3;
+const DEMO_CONSULTATIONS_LIMIT = 2;
 
 function resetUserSessionState(chatId: number) {
   userSessionState.set(chatId, { stage: 'awaiting_situation' });
