@@ -14,9 +14,11 @@ This is a Telegram bot that provides advice from a virtual advisory board powere
     ```
     TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
     GEMINI_API_KEY=your_gemini_api_key_here
+    ADMIN_CHAT_ID=your_admin_chat_id_here
     ```
     You can get a `TELEGRAM_BOT_TOKEN` from [@BotFather](https://t.me/BotFather) in Telegram.
     You can get a `GEMINI_API_KEY` from [Google AI Studio](https://aistudio.google.com/app/apikey).
+    `ADMIN_CHAT_ID` is your Telegram chat ID for receiving session reports.
 
 
 3.  **Run the bot:**
