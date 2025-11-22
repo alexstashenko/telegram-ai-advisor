@@ -291,12 +291,17 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
     if (followUpsRemaining > 0) {
         await bot.sendMessage(chatId, `Осталось вопросов: ${followUpsRemaining}.`);
     } else {
-        await bot.sendMessage(chatId, 'Спасибо! Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
-        
         // This consultation is now finished, increment the counter.
         dbUser.consultationsUsed++;
         await saveUser(dbUser);
         
+        if (dbUser.consultationsUsed >= DEMO_CONSULTATIONS_LIMIT) {
+          await bot.sendMessage(chatId, 'Спасибо! Надеемся, это было полезно!\n\nДемо-режим завершен. Для продолжения, пожалуйста, свяжитесь с @alexander_stashenko.');
+          await notifyAdmin(dbUser);
+        } else {
+          await bot.sendMessage(chatId, 'Спасибо! Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
+        }
+
         resetUserSessionState(chatId);
     }
 }
