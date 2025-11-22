@@ -296,10 +296,10 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         await saveUser(dbUser);
         
         if (dbUser.consultationsUsed >= DEMO_CONSULTATIONS_LIMIT) {
-          await bot.sendMessage(chatId, 'Спасибо! Надеемся, это было полезно!\n\nДемо-режим завершен. Для продолжения, пожалуйста, свяжитесь с @alexander_stashenko.');
+          await bot.sendMessage(chatId, 'Спасибо! Демо-режим завершен.\n\nДля продолжения, пожалуйста, свяжитесь с @alexander_stashenko.');
           await notifyAdmin(dbUser);
         } else {
-          await bot.sendMessage(chatId, 'Спасибо! Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
+          await bot.sendMessage(chatId, 'Спасибо! Надеемся, это было полезно!\n\nЧтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
         }
 
         resetUserSessionState(chatId);
