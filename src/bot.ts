@@ -82,11 +82,22 @@ bot.on('message', async (msg) => {
     }
     const targetState = userState.get(targetUserId) || { stage: 'awaiting_situation' as const };
     const currentMax = targetState.maxSessions || MAX_DEMO_SESSIONS;
+    const newMax = currentMax + 10;
     userState.set(targetUserId, {
       ...targetState,
-      maxSessions: currentMax + 10
+      maxSessions: newMax
     });
-    await bot.sendMessage(chatId, `✅ Пользователю ${targetUserId} добавлено 10 сессий. Новый лимит: ${currentMax + 10}`);
+    await bot.sendMessage(chatId, `✅ Пользователю ${targetUserId} добавлено 10 сессий. Новый лимит: ${newMax}`);
+
+    // Уведомить пользователя о добавленных сессиях
+    try {
+      await bot.sendMessage(targetUserId,
+        `🎁 Вам добавлено 10 дополнительных сессий!\n\n` +
+        `Теперь у вас доступно ${newMax} консультаций. Можете продолжать общение с Советом директоров.`
+      );
+    } catch (error) {
+      console.error('Failed to notify user about granted sessions:', error);
+    }
     return;
   }
 
@@ -141,10 +152,8 @@ async function handleSituation(chatId: number, situation: string, username?: str
 
   if (completedSessions >= maxSessions) {
     await bot.sendMessage(chatId,
-      `🎯 Демо-версия завершена!
-
-` +
-      `Вы прошли ${MAX_DEMO_SESSIONS} консультации. ` +
+      `🎯 Демо-версия завершена!\n\n` +
+      `Вы прошли ${maxSessions} консультации. ` +
       `Надеемся, это было полезно! Если вы хотите продолжить общение с Советом - свяжитесь с @alexander_stashenko`
     );
     return;
@@ -174,6 +183,7 @@ async function handleSituation(chatId: number, situation: string, username?: str
     username: username,
     firstName: firstName,
     completedSessions: currentState?.completedSessions || 0,
+    maxSessions: currentState?.maxSessions, // Сохраняем грант если был
   });
 
   const keyboard = {
