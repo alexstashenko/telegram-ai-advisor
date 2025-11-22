@@ -91,7 +91,7 @@ async function handleSituation(chatId: number, situation: string) {
   }
 
   await bot.sendChatAction(chatId, 'typing');
-  await bot.sendMessage(chatId, 'Анализируем ситуацию и подбираем экспертов...');
+  await bot.sendMessage(chatId, 'Анализируем ситуацию и подбираем экспертов, 20-30 сек...');
   
   const result = await selectAdvisors({ situationDescription: situation });
 
@@ -115,7 +115,7 @@ async function handleSituation(chatId: number, situation: string) {
     }]))
   };
 
-  await bot.sendMessage(chatId, `Отлично! Я подобрал для вас 5 экспертов. Выберите ${REQUIRED_ADVISORS} из них:`, {
+  await bot.sendMessage(chatId, `Отлично! Мы подобрали для вас 5 экспертов. Выберите ${REQUIRED_ADVISORS} из них:`, {
     reply_markup: keyboard,
   });
 }
