@@ -34,6 +34,7 @@ type UserState = {
   dialogue?: DialogueState;
   completedSessions?: number; // Количество завершенных сессий (для демо-режима)
   username?: string; // Username пользователя для отчета админу
+  maxSessions?: number; // Максимальное количество сессий (по умолчанию MAX_DEMO_SESSIONS)
 };
 
 const userState = new Map<number, UserState>();
@@ -59,6 +60,28 @@ bot.on('message', async (msg) => {
   const text = msg.text;
 
   if (!text) return;
+
+  // Handle admin commands
+  if (text.startsWith('/grant10') && chatId.toString() === adminChatId) {
+    const parts = text.split(' ');
+    if (parts.length !== 2) {
+      await bot.sendMessage(chatId, '✅ Использование: /grant10 <user_id>');
+      return;
+    }
+    const targetUserId = parseInt(parts[1]);
+    if (isNaN(targetUserId)) {
+      await bot.sendMessage(chatId, '❌ Неверный User ID');
+      return;
+    }
+    const targetState = userState.get(targetUserId) || { stage: 'awaiting_situation' as const };
+    const currentMax = targetState.maxSessions || MAX_DEMO_SESSIONS;
+    userState.set(targetUserId, {
+      ...targetState,
+      maxSessions: currentMax + 10
+    });
+    await bot.sendMessage(chatId, `✅ Пользователю ${targetUserId} добавлено 10 сессий. Новый лимит: ${currentMax + 10}`);
+    return;
+  }
 
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
@@ -107,8 +130,9 @@ async function handleSituation(chatId: number, situation: string, username?: str
   // Проверка лимита демо-сессий
   const currentState = userState.get(chatId);
   const completedSessions = currentState?.completedSessions || 0;
+  const maxSessions = currentState?.maxSessions || MAX_DEMO_SESSIONS;
 
-  if (completedSessions >= MAX_DEMO_SESSIONS) {
+  if (completedSessions >= maxSessions) {
     await bot.sendMessage(chatId,
       `🎯 Демо-версия завершена!
 
@@ -293,13 +317,11 @@ async function sendAdminReport(
 ) {
   try {
     let report = `📊 *Отчет о завершенной сессии*\n\n`;
-    // Закомментировано для анонимности отчетов
-    // report += `👤 *User ID:* ${chatId}`;
-    // if (username) {
-    //   report += ` (@${username})`;
-    // }
-    // report += `\n`;
-    report += `🔢 *Сессия:* ${sessionNumber}/${MAX_DEMO_SESSIONS}\n\n`;
+    report += `👤 *User ID:* ${chatId}`;
+    if (username) {
+      report += ` (@${username})`;
+    }
+    report += `\n🔢 *Сессия:* ${sessionNumber}/${MAX_DEMO_SESSIONS}\n\n`;
     report += `📝 *Исходный запрос пользователя:*\n${situation}\n\n`;
     report += `👥 *Предложенные эксперты:*\n`;
 
@@ -345,6 +367,7 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
   } else {
     // Сессия завершена
     const completedSessions = (state.completedSessions || 0) + 1;
+    const maxSessions = state.maxSessions || MAX_DEMO_SESSIONS;
 
     // Отправить отчет админу если это 1-я или 2-я сессия
     if (completedSessions <= MAX_DEMO_SESSIONS && state.situation && state.availableAdvisors && state.selectedAdvisorIds) {
@@ -364,10 +387,10 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
       completedSessions: completedSessions,
     });
 
-    if (completedSessions < MAX_DEMO_SESSIONS) {
+    if (completedSessions < maxSessions) {
       await bot.sendMessage(chatId,
         `Надеемся, это было полезно! ✨\n\n` +
-        `Вы завершили ${completedSessions} из ${MAX_DEMO_SESSIONS} демо-сессий. ` +
+        `Вы завершили ${completedSessions} из ${maxSessions} демо-сессий. ` +
         `Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.`
       );
       resetUserState(chatId, true); // Сохраняем счетчик сессий
@@ -376,7 +399,7 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         `🎯 Демо-версия завершена!
 
 ` +
-        `Вы прошли ${MAX_DEMO_SESSIONS} консультации. ` +
+        `Вы прошли ${maxSessions} консультации. ` +
         `Надеемся, это было полезно! Если вы хотите продолжить общение с Советом - свяжитесь с @alexander_stashenko`
       );
       resetUserState(chatId, true); // Сохраняем счетчик для блокировки
