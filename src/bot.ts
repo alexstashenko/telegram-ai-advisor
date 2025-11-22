@@ -61,7 +61,7 @@ bot.on('message', async (msg) => {
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
     resetUserSessionState(chatId);
-    await bot.sendMessage(chatId, `Здравствуйте! Это демо-режим персонального "Совета директоров". У вас есть возможность разобрать ${DEMO_CONSULTATIONS_LIMIT} ситуации.\n\nОпишите вашу первую ситуацию, и я подберу для вас 5 уникальных советников.`);
+    await bot.sendMessage(chatId, `Здравствуйте! Это демо-режим персонального "Совета директоров". У вас есть возможность разобрать ${DEMO_CONSULTATIONS_LIMIT} ситуации.\n\nОпишите вашу рабочую или жизненную ситуацию в 2-3 предложениях, и я подберу для вас 5 уникальных советников.`);
     return;
   }
 
@@ -291,7 +291,7 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
     if (followUpsRemaining > 0) {
         await bot.sendMessage(chatId, `Осталось вопросов: ${followUpsRemaining}.`);
     } else {
-        await bot.sendMessage(chatId, 'Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
+        await bot.sendMessage(chatId, 'Спасибо! Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
         
         // This consultation is now finished, increment the counter.
         dbUser.consultationsUsed++;
