@@ -5,8 +5,10 @@ import TelegramBot from 'node-telegram-bot-api';
 import { simulateAdvisorAdvice } from '@/ai/flows/simulate-advisor-advice';
 import { continueDialogue } from '@/ai/flows/continue-dialogue';
 import { selectAdvisors, type AdvisorProfile } from '@/ai/flows/select-advisors';
+import { getUser, saveUser, type DbUser } from '@/db';
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
+const adminChatId = process.env.ADMIN_CHAT_ID;
 
 if (!token) {
   throw new Error('TELEGRAM_BOT_TOKEN is not defined in .env file');
@@ -14,58 +16,70 @@ if (!token) {
 
 const bot = new TelegramBot(token, { polling: true });
 
-// -- State Management --
+// -- State Management (in-memory for a single session) --
 type DialogueState = {
   history: Array<{ role: 'user' | 'model'; content: string }>;
   followUpsRemaining: number;
 };
 
-type UserState = {
+type UserSessionState = {
   stage: 'awaiting_situation' | 'awaiting_advisor_selection' | 'in_dialogue';
   situation?: string;
-  availableAdvisors?: AdvisorProfile[]; // Все 5 сгенерированных профилей
-  selectedAdvisorIds?: string[]; // ID выбранных пользователем
-  selectedAdvisors?: AdvisorProfile[]; // Полные профили выбранных
+  availableAdvisors?: AdvisorProfile[];
+  selectedAdvisorIds?: string[];
+  selectedAdvisors?: AdvisorProfile[];
   dialogue?: DialogueState;
 };
 
-const userState = new Map<number, UserState>();
+const userSessionState = new Map<number, UserSessionState>();
+
+// --- Constants ---
 const MAX_FOLLOW_UPS = 3;
 const REQUIRED_ADVISORS = 3;
 const MAX_SITUATION_LENGTH = 2000;
+const DEMO_CONSULTATIONS_LIMIT = 3;
 
-function resetUserState(chatId: number) {
-  userState.set(chatId, { stage: 'awaiting_situation' });
+function resetUserSessionState(chatId: number) {
+  userSessionState.set(chatId, { stage: 'awaiting_situation' });
 }
 
+// --- Main Message Handler ---
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
 
   if (!text) return;
 
+  // Get or create user in our DB
+  const dbUser = await getUser(chatId);
+  dbUser.firstName = msg.chat.first_name || '';
+  dbUser.lastName = msg.chat.last_name || '';
+  dbUser.username = msg.chat.username || '';
+  await saveUser(dbUser);
+
+
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
-    resetUserState(chatId);
+    resetUserSessionState(chatId);
     await bot.sendMessage(chatId, `Здравствуйте! Опишите вашу ситуацию, и я подберу для вас 5 персон, наиболее подходящих для вашего персонального Совета директоров.`);
     return;
   }
 
-  const currentState = userState.get(chatId) || { stage: 'awaiting_situation' };
+  const currentState = userSessionState.get(chatId) || { stage: 'awaiting_situation' };
 
   try {
     switch (currentState.stage) {
       case 'awaiting_situation':
-        await handleSituation(chatId, text);
+        await handleSituation(chatId, text, dbUser);
         break;
       
       case 'in_dialogue':
         if (!currentState.dialogue) {
-          resetUserState(chatId);
+          resetUserSessionState(chatId);
           await bot.sendMessage(chatId, 'Произошла ошибка в диалоге. Начинаем заново. Опишите вашу ситуацию.');
           return;
         }
-        await handleFollowUp(chatId, text, currentState as Required<UserState>);
+        await handleFollowUp(chatId, text, currentState as Required<UserSessionState>, dbUser);
         break;
 
       case 'awaiting_advisor_selection':
@@ -73,18 +87,28 @@ bot.on('message', async (msg) => {
         break;
         
       default:
-        resetUserState(chatId);
+        resetUserSessionState(chatId);
         await bot.sendMessage(chatId, 'Произошла ошибка в логике. Начинаем заново. Опишите вашу ситуацию.');
         break;
     }
   } catch (error) {
     console.error('Error processing message:', error);
-    resetUserState(chatId);
+    resetUserSessionState(chatId);
     await bot.sendMessage(chatId, 'Произошла непредвиденная ошибка. Пожалуйста, начните заново с команды /start.');
   }
 });
 
-async function handleSituation(chatId: number, situation: string) {
+
+// --- Logic Flow Handlers ---
+
+async function handleSituation(chatId: number, situation: string, dbUser: DbUser) {
+  // Check if user has reached the demo limit
+  if (dbUser.consultationsUsed >= DEMO_CONSULTATIONS_LIMIT) {
+    await bot.sendMessage(chatId, `Демо-режим завершен. Для продолжения, пожалуйста, свяжитесь с @alexander_stashenko.`);
+    await notifyAdmin(dbUser);
+    return;
+  }
+
   if (situation.length > MAX_SITUATION_LENGTH) {
     await bot.sendMessage(chatId, `Слишком длинное описание. Пожалуйста, сократите до ${MAX_SITUATION_LENGTH} символов.`);
     return;
@@ -96,12 +120,12 @@ async function handleSituation(chatId: number, situation: string) {
   const result = await selectAdvisors({ situationDescription: situation });
 
   if (!result || !result.advisors || result.advisors.length < REQUIRED_ADVISORS) {
-    resetUserState(chatId);
+    resetUserSessionState(chatId);
     await bot.sendMessage(chatId, 'Не удалось подобрать достаточное количество советников для вашей ситуации. Попробуйте переформулировать запрос или нажмите /start для начала.');
     return;
   }
   
-  userState.set(chatId, {
+  userSessionState.set(chatId, {
     stage: 'awaiting_advisor_selection',
     situation: situation,
     availableAdvisors: result.advisors,
@@ -130,7 +154,7 @@ bot.on('callback_query', async (callbackQuery) => {
       return;
     }
     
-    const currentState = userState.get(chatId);
+    const currentState = userSessionState.get(chatId);
     if (!currentState || currentState.stage !== 'awaiting_advisor_selection' || 
         !currentState.selectedAdvisorIds || !currentState.availableAdvisors) {
         await bot.answerCallbackQuery(callbackQuery.id, { text: "Сессия истекла. Пожалуйста, начните сначала с /start."});
@@ -143,13 +167,10 @@ bot.on('callback_query', async (callbackQuery) => {
     let updatedSelectedAdvisorIds: string[];
 
     if (isSelected) {
-      // Deselect
       updatedSelectedAdvisorIds = currentState.selectedAdvisorIds.filter(id => id !== advisorId);
     } else if (currentState.selectedAdvisorIds.length < REQUIRED_ADVISORS) {
-      // Select
       updatedSelectedAdvisorIds = [...currentState.selectedAdvisorIds, advisorId];
     } else {
-      // Max number already selected
       await bot.answerCallbackQuery(callbackQuery.id, { text: `Вы можете выбрать только ${REQUIRED_ADVISORS} советников.`, show_alert: true });
       return;
     }
@@ -158,9 +179,8 @@ bot.on('callback_query', async (callbackQuery) => {
       ...currentState,
       selectedAdvisorIds: updatedSelectedAdvisorIds
     };
-    userState.set(chatId, updatedState);
+    userSessionState.set(chatId, updatedState);
 
-    // Update keyboard to show checkmarks
     const oldKeyboard = callbackQuery.message!.reply_markup!.inline_keyboard;
     const newKeyboard = oldKeyboard.map(row => row.map(button => {
         const buttonAdvisorId = button.callback_data!.split('_')[1];
@@ -175,9 +195,7 @@ bot.on('callback_query', async (callbackQuery) => {
     await bot.editMessageReplyMarkup({ inline_keyboard: newKeyboard }, { chat_id: chatId, message_id: messageId });
     await bot.answerCallbackQuery(callbackQuery.id);
     
-    // Check if we have enough advisors to proceed
     if (updatedSelectedAdvisorIds.length === REQUIRED_ADVISORS) {
-        // Get full profiles of selected advisors
         const selectedAdvisors = updatedState.availableAdvisors!.filter(
           advisor => updatedSelectedAdvisorIds.includes(advisor.id)
         );
@@ -186,17 +204,16 @@ bot.on('callback_query', async (callbackQuery) => {
         await generateInitialAdvice(chatId, {
           ...updatedState,
           selectedAdvisors,
-        } as Required<UserState>);
+        } as Required<UserSessionState>);
     }
 });
 
 
-async function generateInitialAdvice(chatId: number, state: Required<UserState>) {
+async function generateInitialAdvice(chatId: number, state: Required<UserSessionState>) {
     await bot.sendChatAction(chatId, 'typing');
     
-    // Validate selected advisors
     if (!state.selectedAdvisors || state.selectedAdvisors.length !== REQUIRED_ADVISORS) {
-      resetUserState(chatId);
+      resetUserSessionState(chatId);
       await bot.sendMessage(chatId, 'Ошибка валидации советников. Пожалуйста, начните заново с команды /start.');
       return;
     }
@@ -207,7 +224,7 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     });
     
     if (!result || !result.advisorAdvices || result.advisorAdvices.length === 0) {
-        resetUserState(chatId);
+        resetUserSessionState(chatId);
         await bot.sendMessage(chatId, "К сожалению, не удалось сгенерировать совет. Попробуйте переформулировать ваш запрос или нажмите /start для начала.");
         return;
     }
@@ -218,7 +235,6 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
     const allAdvices: string[] = [];
 
     result.advisorAdvices.forEach(advice => {
-        // Find advisor profile by id
         const profile = state.selectedAdvisors!.find(a => a.id === advice.advisorId);
         const advisorName = profile ? profile.name : advice.advisorId;
         const adviceText = `*${advisorName}:*\n${advice.advice}`;
@@ -233,7 +249,7 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
         { role: 'model', content: combinedModelResponse },
     ];
 
-    userState.set(chatId, {
+    userSessionState.set(chatId, {
       ...state,
       stage: 'in_dialogue',
       dialogue: {
@@ -247,7 +263,7 @@ async function generateInitialAdvice(chatId: number, state: Required<UserState>)
 }
 
 
-async function handleFollowUp(chatId: number, text: string, state: Required<UserState>) {
+async function handleFollowUp(chatId: number, text: string, state: Required<UserSessionState>, dbUser: DbUser) {
     await bot.sendChatAction(chatId, 'typing');
 
     const followUpResult = await continueDialogue({
@@ -262,7 +278,7 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
     ];
     const followUpsRemaining = state.dialogue.followUpsRemaining - 1;
 
-    userState.set(chatId, {
+    userSessionState.set(chatId, {
       ...state,
       dialogue: {
         history: newHistory,
@@ -276,27 +292,55 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         await bot.sendMessage(chatId, `Осталось вопросов: ${followUpsRemaining}.`);
     } else {
         await bot.sendMessage(chatId, 'Надеемся, это было полезно! Чтобы начать новую консультацию, просто опишите вашу следующую ситуацию.');
-        resetUserState(chatId);
+        
+        // This consultation is now finished, increment the counter.
+        dbUser.consultationsUsed++;
+        await saveUser(dbUser);
+        
+        resetUserSessionState(chatId);
     }
 }
 
+async function notifyAdmin(dbUser: DbUser) {
+    if (!adminChatId) {
+        console.warn("ADMIN_CHAT_ID is not set. Cannot send notification.");
+        return;
+    }
 
-// Suppress the ETELEGRAM error in the development environment
+    const { chatId, firstName, lastName, username, consultationsUsed } = dbUser;
+    let userNameString = firstName;
+    if (lastName) userNameString += ` ${lastName}`;
+    if (username) userNameString += ` (@${username})`;
+
+    const message = `
+Пользователь завершил демо-доступ.
+
+- ID: ${chatId}
+- Имя: ${userNameString}
+- Использовано консультаций: ${consultationsUsed}
+    `;
+
+    try {
+        await bot.sendMessage(adminChatId, message.trim());
+    } catch (error) {
+        console.error(`Failed to send notification to admin (${adminChatId}):`, error);
+    }
+}
+
+// --- Error Handling & Graceful Shutdown ---
+
 bot.on('polling_error', (error) => {
-  // ETELEGRAM error 409: Conflict - Another instance of the bot is already running.
   if ((error as any).code === 'ETELEGRAM' && (error as any).message.includes('409 Conflict')) {
     console.error('CRITICAL: Another instance of the bot is already running. This instance will be terminated.');
     console.error('Please make sure to stop all other running bot processes.');
-    process.exit(1); // Exit with a failure code
+    process.exit(1); 
   } else {
-    // For any other polling error, just log it.
     console.error('Polling error:', error);
   }
 });
 
 console.log('Telegram bot started...');
 
-// Graceful shutdown
 const cleanup = async () => {
   console.log('Stopping Telegram bot...');
   try {
@@ -312,5 +356,3 @@ const cleanup = async () => {
 
 process.on('SIGINT', cleanup);
 process.on('SIGTERM', cleanup);
-
-    
