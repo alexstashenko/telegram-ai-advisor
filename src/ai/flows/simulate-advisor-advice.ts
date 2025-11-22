@@ -29,10 +29,10 @@ const SimulateAdvisorAdviceOutputSchema = z.object({
   advisorAdvices: z.array(
     z.object({
       advisorId: z.string().describe("The ID of the advisor."),
-      advice: z.string().describe("The concise advice from this advisor (3-4 sentences)."),
+      advice: z.string().describe("The concise advice from this advisor (2-3 sentences)."),
     })
   ),
-  synthesis: z.string().describe('A concise synthesis of the advice from all advisors (3-4 sentences).'),
+  synthesis: z.string().describe('A concise synthesis of the advice from all advisors (2-3 sentences).'),
 });
 
 export type SimulateAdvisorAdviceOutput = z.infer<
@@ -69,9 +69,9 @@ const simulateAdvisorAdvicePrompt = ai.definePrompt({
   {{/each}}
   
   INSTRUCTIONS:
-  1. For EACH advisor, provide their specific advice based on their profile. The advice for EACH advisor must be CONCISE (3-4 sentences).
+  1. For EACH advisor, provide their specific advice based on their profile. The advice for EACH advisor must be CONCISE (2-3 sentences).
   2. Embody their unique style, principles, and tone authentically.
-  3. Then, provide a "synthesis": a short, actionable summary of all advice. The synthesis must also be CONCISE (3-4 sentences).
+  3. Then, provide a "synthesis": a short, actionable summary of all advice. The synthesis must also be CONCISE (2-3 sentences).
   4. CRITICAL: In the output JSON, the 'advisorId' field MUST be the exact ID string provided above.
   5. Return advice for ALL advisors provided in the list.
 
