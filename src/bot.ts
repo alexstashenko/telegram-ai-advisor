@@ -33,6 +33,7 @@ type UserState = {
   selectedAdvisors?: AdvisorProfile[]; // Полные профили выбранных
   dialogue?: DialogueState;
   completedSessions?: number; // Количество завершенных сессий (для демо-режима)
+  username?: string; // Username пользователя для отчета админу
 };
 
 const userState = new Map<number, UserState>();
@@ -71,7 +72,7 @@ bot.on('message', async (msg) => {
   try {
     switch (currentState.stage) {
       case 'awaiting_situation':
-        await handleSituation(chatId, text);
+        await handleSituation(chatId, text, msg.from?.username);
         break;
 
       case 'in_dialogue':
@@ -99,7 +100,7 @@ bot.on('message', async (msg) => {
   }
 });
 
-async function handleSituation(chatId: number, situation: string) {
+async function handleSituation(chatId: number, situation: string, username?: string) {
   // Проверка лимита демо-сессий
   const currentState = userState.get(chatId);
   const completedSessions = currentState?.completedSessions || 0;
@@ -134,6 +135,8 @@ async function handleSituation(chatId: number, situation: string) {
     situation: situation,
     availableAdvisors: result.advisors,
     selectedAdvisorIds: [],
+    username: username,
+    completedSessions: currentState?.completedSessions || 0,
   });
 
   const keyboard = {
@@ -280,12 +283,16 @@ async function sendAdminReport(
   sessionNumber: number,
   situation: string,
   allAdvisors: AdvisorProfile[],
-  selectedAdvisorIds: string[]
+  selectedAdvisorIds: string[],
+  username?: string
 ) {
   try {
     let report = `📊 *Отчет о завершенной сессии*\n\n`;
-    report += `👤 *User ID:* ${chatId}\n`;
-    report += `🔢 *Сессия:* ${sessionNumber}/${MAX_DEMO_SESSIONS}\n\n`;
+    report += `👤 *User ID:* ${chatId}`;
+    if (username) {
+      report += ` (@${username})`;
+    }
+    report += `\n🔢 *Сессия:* ${sessionNumber}/${MAX_DEMO_SESSIONS}\n\n`;
     report += `📝 *Исходный запрос пользователя:*\n${situation}\n\n`;
     report += `👥 *Предложенные эксперты:*\n`;
 
@@ -294,8 +301,6 @@ async function sendAdminReport(
       const marker = isSelected ? '✅' : '▫️';
       report += `${index + 1}. ${marker} *${advisor.name}* — ${advisor.description}\n`;
     });
-
-    report += `\n_Эксперты с ✅ были выбраны пользователем._`;
 
     await bot.sendMessage(adminChatId!, report, { parse_mode: 'Markdown' });
   } catch (error) {
@@ -341,7 +346,8 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         completedSessions,
         state.situation,
         state.availableAdvisors,
-        state.selectedAdvisorIds
+        state.selectedAdvisorIds,
+        state.username
       );
     }
 
