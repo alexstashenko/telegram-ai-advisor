@@ -61,7 +61,7 @@ bot.on('message', async (msg) => {
   // Handle /start command separately to reset state
   if (text.startsWith('/start')) {
     resetUserSessionState(chatId);
-    await bot.sendMessage(chatId, `Здравствуйте! Опишите вашу ситуацию, и я подберу для вас 5 персон, наиболее подходящих для вашего персонального Совета директоров.`);
+    await bot.sendMessage(chatId, `Здравствуйте! Это демо-режим персонального «Совета директоров». У вас есть возможность разобрать ${DEMO_CONSULTATIONS_LIMIT} ситуации.\n\nОпишите вашу первую ситуацию, и я подберу для вас 5 уникальных советников.`);
     return;
   }
 
