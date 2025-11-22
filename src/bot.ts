@@ -49,10 +49,16 @@ function resetUserState(chatId: number, preserveSessionCount: boolean = false) {
   const completedSessions = preserveSessionCount && currentState?.completedSessions
     ? currentState.completedSessions
     : 0;
+  const maxSessions = preserveSessionCount ? currentState?.maxSessions : undefined;
+  const username = preserveSessionCount ? currentState?.username : undefined;
+  const firstName = preserveSessionCount ? currentState?.firstName : undefined;
 
   userState.set(chatId, {
     stage: 'awaiting_situation',
-    completedSessions
+    completedSessions,
+    maxSessions,
+    username,
+    firstName
   });
 }
 
@@ -357,25 +363,31 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
   ];
   const followUpsRemaining = state.dialogue.followUpsRemaining - 1;
 
-  userState.set(chatId, {
-    ...state,
-    dialogue: {
-      history: newHistory,
-      followUpsRemaining: followUpsRemaining,
-    }
-  });
-
   await bot.sendMessage(chatId, followUpResult.answer, { parse_mode: 'Markdown' });
 
   if (followUpsRemaining > 0) {
+    // Еще есть вопросы - обновляем state с новым диалогом
+    userState.set(chatId, {
+      ...state,
+      dialogue: {
+        history: newHistory,
+        followUpsRemaining: followUpsRemaining,
+      }
+    });
     await bot.sendMessage(chatId, `Осталось вопросов: ${followUpsRemaining}.`);
   } else {
     // Сессия завершена
     const completedSessions = (state.completedSessions || 0) + 1;
     const maxSessions = state.maxSessions || MAX_DEMO_SESSIONS;
 
-    // Отправить отчет админу если это 1-я или 2-я сессия
-    if (completedSessions <= MAX_DEMO_SESSIONS && state.situation && state.availableAdvisors && state.selectedAdvisorIds) {
+    // Обновить счетчик сессий в state
+    userState.set(chatId, {
+      ...state,
+      completedSessions: completedSessions,
+    });
+
+    // Отправить отчет админу (всегда, независимо от номера сессии)
+    if (state.situation && state.availableAdvisors && state.selectedAdvisorIds) {
       await sendAdminReport(
         chatId,
         completedSessions,
@@ -386,12 +398,6 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         state.firstName
       );
     }
-
-    // Обновить счетчик сессий в state ПЕРЕД сбросом
-    userState.set(chatId, {
-      ...state,
-      completedSessions: completedSessions,
-    });
 
     if (completedSessions < maxSessions) {
       await bot.sendMessage(chatId,
