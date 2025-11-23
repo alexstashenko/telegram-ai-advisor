@@ -182,6 +182,7 @@ async function handleSituation(chatId: number, situation: string, username?: str
     completedSessions: currentState?.completedSessions || 0,
     maxSessions: currentState?.maxSessions, // Сохраняем грант если был
   });
+  console.log(`[DEBUG] handleSituation: saved situation for chatId ${chatId}:`, situation.substring(0, 50) + '...');
 
   const keyboard = {
     inline_keyboard: result.advisors.map(advisor => ([{
@@ -395,6 +396,7 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
 
     // Отправить отчет админу (всегда, независимо от номера сессии)
     if (state.situation && state.availableAdvisors && state.selectedAdvisorIds) {
+      console.log(`[DEBUG] Sending admin report for chatId ${chatId}, situation:`, state.situation.substring(0, 50) + '...');
       await sendAdminReport(
         chatId,
         completedSessions,
