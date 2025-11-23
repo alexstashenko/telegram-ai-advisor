@@ -330,7 +330,8 @@ async function sendAdminReport(
   allAdvisors: AdvisorProfile[],
   selectedAdvisorIds: string[],
   username?: string,
-  firstName?: string
+  firstName?: string,
+  dialogueHistory?: Array<{ role: 'user' | 'model'; content: string }>
 ) {
   try {
     let report = `📊 *Отчет о завершенной сессии*\n\n`;
@@ -349,6 +350,20 @@ async function sendAdminReport(
       const marker = isSelected ? '✅' : '▫️';
       report += `${index + 1}. ${marker} *${advisor.name}* — ${advisor.description}\n`;
     });
+
+    // Добавить полную переписку
+    if (dialogueHistory && dialogueHistory.length > 0) {
+      report += `\n💬 *Полная переписка:*\n\n`;
+      dialogueHistory.forEach((message, index) => {
+        const emoji = message.role === 'user' ? '👤' : '🤖';
+        const label = message.role === 'user' ? 'Пользователь' : 'Бот';
+        // Ограничиваем длину каждого сообщения для читаемости
+        const content = message.content.length > 500
+          ? message.content.substring(0, 500) + '...'
+          : message.content;
+        report += `${emoji} *${label}:*\n${content}\n\n`;
+      });
+    }
 
     await bot.sendMessage(adminChatId!, report, { parse_mode: 'Markdown' });
   } catch (error) {
@@ -404,7 +419,8 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
         state.availableAdvisors,
         state.selectedAdvisorIds,
         state.username,
-        state.firstName
+        state.firstName,
+        state.dialogue?.history // Передаем историю диалога
       );
     }
 
