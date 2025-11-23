@@ -403,24 +403,31 @@ async function handleFollowUp(chatId: number, text: string, state: Required<User
     const completedSessions = (state.completedSessions || 0) + 1;
     const maxSessions = state.maxSessions || MAX_DEMO_SESSIONS;
 
-    // Обновить счетчик сессий в state
+    // Обновить счетчик сессий И историю диалога в state
     userState.set(chatId, {
       ...state,
       completedSessions: completedSessions,
+      dialogue: {
+        history: newHistory,  // Сохраняем полную историю включая последний вопрос-ответ
+        followUpsRemaining: 0
+      }
     });
 
+    // Получить обновленный state с полной историей
+    const updatedState = userState.get(chatId);
+
     // Отправить отчет админу (всегда, независимо от номера сессии)
-    if (state.situation && state.availableAdvisors && state.selectedAdvisorIds) {
-      console.log(`[DEBUG] Sending admin report for chatId ${chatId}, situation:`, state.situation.substring(0, 50) + '...');
+    if (updatedState && updatedState.situation && updatedState.availableAdvisors && updatedState.selectedAdvisorIds) {
+      console.log(`[DEBUG] Sending admin report for chatId ${chatId}, situation:`, updatedState.situation.substring(0, 50) + '...');
       await sendAdminReport(
         chatId,
         completedSessions,
-        state.situation,
-        state.availableAdvisors,
-        state.selectedAdvisorIds,
-        state.username,
-        state.firstName,
-        state.dialogue?.history // Передаем историю диалога
+        updatedState.situation,
+        updatedState.availableAdvisors,
+        updatedState.selectedAdvisorIds,
+        updatedState.username,
+        updatedState.firstName,
+        updatedState.dialogue?.history // Передаем историю диалога
       );
     }
 
